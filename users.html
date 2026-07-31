@@ -306,14 +306,13 @@
           <th>EMAIL</th>
           <th>PHONE NUMBER</th>
           <th>BANK NAME</th>
-          <th>ACCOUNT NO</th>
           <th>STATUS</th>
           <th style="text-align: center;">ACTIONS</th>
         </tr>
       </thead>
       <tbody id="usersTbody">
         <tr>
-          <td colspan="8" style="text-align:center; padding: 32px; color: var(--text-muted);">
+          <td colspan="7" style="text-align:center; padding: 32px; color: var(--text-muted);">
             Loading user profiles...
           </td>
         </tr>
@@ -346,15 +345,9 @@
           <label>Phone Number</label>
           <input type="text" id="modalPhone" class="form-input" placeholder="0123456789">
         </div>
-        <div style="display: flex; gap: 10px;">
-          <div class="form-group" style="flex:1;">
-            <label>Bank Name</label>
-            <input type="text" id="modalBankName" class="form-input" placeholder="Maybank / CIMB">
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label>Account Number</label>
-            <input type="text" id="modalBankAcct" class="form-input" placeholder="1234567890">
-          </div>
+        <div class="form-group">
+          <label>Bank Name / Details</label>
+          <input type="text" id="modalBank" class="form-input" placeholder="Maybank - 1234567890">
         </div>
       </div>
       <div class="modal-footer">
@@ -383,7 +376,7 @@
 
     async function loadUsersTable() {
       const tbody = document.getElementById("usersTbody");
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-muted);">Loading user records...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: var(--text-muted);">Loading user records...</td></tr>`;
 
       try {
         if (window.db && window.firestoreTools) {
@@ -399,7 +392,7 @@
         }
       } catch (err) {
         console.error("Users load error:", err);
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: #ef4444;">Error loading user profiles. Please check database connection.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: #ef4444;">Error loading user profiles. Please check database connection.</td></tr>`;
       }
     }
 
@@ -407,7 +400,7 @@
       const tbody = document.getElementById("usersTbody");
 
       if (users.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-muted);">No user records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: var(--text-muted);">No user records found.</td></tr>`;
         return;
       }
 
@@ -415,12 +408,12 @@
       users.forEach((u) => {
         const tr = document.createElement("tr");
 
-        const nameVal = u.nama || u.full_name || u.name || u["FULL NAME (AS PER IC / PASSPORT)"] || "";
-        const docNo = u.doc_no || u.ic_no || u.passport || "";
+        // Dynamic field extraction based on Firestore document structure
+        const nameVal = u.nama_mykad || u.nama || u.full_name || u.name || u["FULL NAME (AS PER IC / PASSPORT)"] || "";
+        const docNo = u["Column 1"] || u.doc_no || u.ic_no || u.doc_type || u.passport || "";
         const email = u.email || "";
         const phone = u.phone || u.phone_number || "";
-        const bankName = u.bank_name || u.bank || "";
-        const bankAcct = u.bank_account || u.account_no || "";
+        const bankInfo = u.bank || u.bank_name || "";
         const status = u.status || "ACTIVE";
 
         tr.innerHTML = `
@@ -428,8 +421,7 @@
           <td class="user-name-cell">${nameVal}</td>
           <td>${email}</td>
           <td>${phone}</td>
-          <td>${bankName}</td>
-          <td style="font-family: monospace;">${bankAcct}</td>
+          <td>${bankInfo}</td>
           <td>
             <span class="badge-status ${status === 'ACTIVE' ? 'status-active' : 'status-inactive'}">
               ${status}
@@ -452,8 +444,8 @@
       const search = document.getElementById("userSearch").value.toLowerCase();
 
       const filtered = allUsers.filter((u) => {
-        const nameVal = (u.nama || u.full_name || u.name || u["FULL NAME (AS PER IC / PASSPORT)"] || "").toLowerCase();
-        const docNo = (u.doc_no || u.ic_no || u.passport || "").toLowerCase();
+        const nameVal = (u.nama_mykad || u.nama || u.full_name || u.name || "").toLowerCase();
+        const docNo = (u["Column 1"] || u.doc_no || u.ic_no || u.doc_type || "").toLowerCase();
         const email = (u.email || "").toLowerCase();
         const phone = (u.phone || u.phone_number || "").toLowerCase();
 
@@ -474,8 +466,7 @@
       document.getElementById("modalName").value = "";
       document.getElementById("modalEmail").value = "";
       document.getElementById("modalPhone").value = "";
-      document.getElementById("modalBankName").value = "";
-      document.getElementById("modalBankAcct").value = "";
+      document.getElementById("modalBank").value = "";
       document.getElementById("modalTitle").textContent = "Add New User Profile";
       document.getElementById("userModal").style.display = "flex";
     }
@@ -489,12 +480,11 @@
       if (!u) return;
 
       document.getElementById("modalUserId").value = u.id;
-      document.getElementById("modalDocNo").value = u.doc_no || u.ic_no || "";
-      document.getElementById("modalName").value = u.nama || u.full_name || u.name || "";
+      document.getElementById("modalDocNo").value = u["Column 1"] || u.doc_no || u.ic_no || "";
+      document.getElementById("modalName").value = u.nama_mykad || u.nama || u.full_name || u.name || "";
       document.getElementById("modalEmail").value = u.email || "";
       document.getElementById("modalPhone").value = u.phone || u.phone_number || "";
-      document.getElementById("modalBankName").value = u.bank_name || u.bank || "";
-      document.getElementById("modalBankAcct").value = u.bank_account || u.account_no || "";
+      document.getElementById("modalBank").value = u.bank || u.bank_name || "";
       document.getElementById("modalTitle").textContent = "Edit User Profile";
       document.getElementById("userModal").style.display = "flex";
     }
@@ -505,8 +495,7 @@
       const name = document.getElementById("modalName").value.trim();
       const email = document.getElementById("modalEmail").value.trim();
       const phone = document.getElementById("modalPhone").value.trim();
-      const bankName = document.getElementById("modalBankName").value.trim();
-      document.getElementById("modalBankAcct").value.trim();
+      const bankInfo = document.getElementById("modalBank").value.trim();
 
       if (!docNo || !name) {
         alert("Please provide at least IC/Passport Number and Name.");
@@ -526,12 +515,11 @@
       closeBtn.style.display = "none";
 
       const payload = {
-        doc_no: docNo,
-        nama: name,
+        "Column 1": docNo,
+        nama_mykad: name,
         email: email,
         phone: phone,
-        bank_name: bankName,
-        bank_account: document.getElementById("modalBankAcct").value.trim(),
+        bank: bankInfo,
         updated_at: new Date()
       };
 
