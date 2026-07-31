@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MITEC — Cashier Attendance & Payment Spreadsheet</title>
+
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- 🚀 FIREBASE FIRESTORE INTEGRATION -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      doc,
+      updateDoc,
+      query, 
+      where,
+      orderBy,
+      limit 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "casualmitec-apps"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firestoreTools = { collection, getDocs, doc, updateDoc, query, where, orderBy, limit };
+    console.log("🔥 Firebase Firestore connected on Cashier Grid View!");
+  </script>
+
+  <style>
+    :root {
+      --mitec-blue: #092253;
+      --mitec-blue-dark: #071a3d;
+      --bg-base: #f8f9fa; 
+      --card-bg: #ffffff;
+      --text-main: #2c2c2e;
+      --text-muted: #6e6e73;
+      --border-color: #cbd5e1;
+      --success-green: #28a745;
+      --shadow-standard: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+    body { 
+      margin: 0; padding: 20px; 
+      background-color: var(--bg-base);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand-section { display: flex; align-items: center; gap: 12px; }
+    .brand-img { height: 26px; width: auto; }
+    .page-title { font-size: 18px; font-weight: 700; color: var(--mitec-blue); margin: 0; }
+
+    /* CONTROLS BAR */
+    .controls-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: var(--shadow-standard);
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .search-wrapper { position: relative; flex: 1; min-width: 240px; }
+    .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+
+    .input-field-control {
+      width: 100%; height: 38px; border-radius: 6px;
+      border: 1px solid var(--border-color); background: #fff;
+      padding: 0 12px 0 38px; font-size: 13px; outline: none;
+    }
+    .input-field-control:focus { border-color: var(--mitec-blue); }
+
+    .filter-select {
+      height: 38px; border-radius: 6px;
+      border: 1px solid var(--border-color); background: #fff;
+      padding: 0 10px; font-size: 13px; outline: none;
+    }
+
+    .btn-refresh {
+      height: 38px; padding: 0 14px; border-radius: 6px;
+      background: var(--mitec-blue); color: #fff;
+      font-size: 13px; font-weight: 600; border: none;
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+
+    /* SPREADSHEET TABLE LAYOUT */
+    .table-container {
+      background: var(--card-bg);
+      border-radius: 10px;
+      box-shadow: var(--shadow-standard);
+      overflow: auto;
+      max-height: 78vh;
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    th {
+      background: #e2e8f0;
+      color: var(--mitec-blue);
+      font-weight: 700;
+      padding: 10px 8px;
+      border: 1px solid var(--border-color);
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    td {
+      padding: 4px;
+      border: 1px solid var(--border-color);
+      vertical-align: middle;
+      white-space: nowrap;
+      background: #fff;
+    }
+
+    tr:hover td { background: #f1f5f9; }
+
+    /* EDITABLE CELL INPUTS (GOOGLE SHEET STYLE) */
+    .cell-input {
+      width: 100%;
+      height: 32px;
+      border: 1px solid transparent;
+      background: transparent;
+      padding: 2px 6px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text-main);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .cell-input:focus {
+      background: #ffffff;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .cell-readonly {
+      padding: 6px;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    .row-dirty td { background: #fefce8 !important; }
+
+    .btn-save-row {
+      background: #94a3b8; color: #fff;
+      border: none; padding: 6px 10px; border-radius: 4px;
+      font-weight: 600; font-size: 11px; cursor: pointer;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .btn-save-active {
+      background: var(--success-green) !important;
+      cursor: pointer;
+    }
+
+    /* FROSTED GLASS OVERLAY */
+    .overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(9, 34, 83, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
+    }
+
+    .overlay-card {
+      background: #ffffff; border-radius: 20px; padding: 28px 20px;
+      max-width: 340px; width: 100%; text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    .spinner { 
+      width: 40px; height: 40px; border: 3px solid #eee; 
+      border-top: 3px solid var(--mitec-blue); border-radius: 50%; 
+      animation: spin 0.8s linear infinite; margin-bottom: 20px; 
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div class="brand-section">
+      <img class="brand-img" src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC">
+      <h1 class="page-title">Cashier Attendance & Payment Ledger</h1>
+    </div>
+  </div>
+
+  <!-- CONTROLS & FILTER -->
+  <div class="controls-card">
+    <div class="search-wrapper">
+      <i class="ph ph-magnifying-glass input-icon"></i>
+      <input type="text" id="tableSearch" class="input-field-control" placeholder="Search Voucher, Name, IC, or Dept..." onkeyup="filterTable()">
+    </div>
+
+    <select id="statusFilter" class="filter-select" onchange="filterTable()">
+      <option value="ALL">All Statuses</option>
+      <option value="UNPAID">Unpaid Only</option>
+      <option value="PAID">Paid Only</option>
+    </select>
+
+    <button class="btn-refresh" onclick="loadAttendanceTable()">
+      <i class="ph ph-arrows-clockwise"></i> Refresh Grid
+    </button>
+  </div>
+
+  <!-- EDITABLE SPREADSHEET TABLE -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>SAVE</th>
+          <th>WORKING DATE</th>
+          <th>Timestamp</th>
+          <th>SHIFT</th>
+          <th>Email address</th>
+          <th>DOC_NO</th>
+          <th>VOUCHER</th>
+          <th>NAMA (MENGIKUT IC)</th>
+          <th>DEPARTMENT</th>
+          <th>SIGN OUT</th>
+          <th>IN</th>
+          <th>OUT</th>
+          <th>HOURS</th>
+          <th>RATE</th>
+          <th>WAGES</th>
+          <th>PROCESS DATE</th>
+          <th>PAYMENT DATE</th>
+          <th>REMARKS</th>
+          <th>NOTES</th>
+          <th>NO PHONE</th>
+          <th>GENDER</th>
+          <th>PAYMENT MODE</th>
+        </tr>
+      </thead>
+      <tbody id="attendanceTbody">
+        <tr>
+          <td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">
+            Loading attendance records...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- STATUS OVERLAY MODAL -->
+  <div id="statusOverlay" class="overlay">
+    <div class="overlay-card">
+      <div id="spinner" class="spinner"></div>
+      <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait...</p>
+      <button id="closeBtn" class="btn-refresh" style="display: none; margin-top: 20px; width: 100%;" onclick="closeOverlay()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    let allShifts = [];
+    const userProfileCache = {}; // Cache profiles by doc_no to minimize queries
+
+    function closeOverlay() {
+      document.getElementById("statusOverlay").style.display = "none";
+    }
+
+    async function loadAttendanceTable() {
+      const tbody = document.getElementById("attendanceTbody");
+      tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">Loading attendance spreadsheet...</td></tr>`;
+
+      try {
+        if (window.db && window.firestoreTools) {
+          const { collection, query, orderBy, limit, getDocs } = window.firestoreTools;
+
+          const q = query(
+            collection(window.db, "shifts"),
+            orderBy("created_at", "desc"),
+            limit(100)
+          );
+
+          const querySnapshot = await getDocs(q);
+
+          allShifts = [];
+          querySnapshot.forEach((docSnap) => {
+            allShifts.push({ id: docSnap.id, ...docSnap.data() });
+          });
+
+          // Fetch missing profile data for older records missing name/email
+          await populateMissingProfiles(allShifts);
+
+          renderRows(allShifts);
+        }
+      } catch (err) {
+        console.error("Table load error:", err);
+        tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: #dc2626;">Error loading records. Please check connection.</td></tr>`;
+      }
+    }
+
+    // Lookup users collection if name/email are missing in shift record
+    async function populateMissingProfiles(shifts) {
+      const { collection, query, where, getDocs } = window.firestoreTools;
+
+      for (let s of shifts) {
+        const hasName = s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"];
+        const hasEmail = s.email || s.email_address || s["EMAIL ADDRESS"];
+
+        if ((!hasName || !hasEmail) && s.doc_no) {
+          if (!userProfileCache[s.doc_no]) {
+            try {
+              const uq = query(collection(window.db, "users"), where("doc_no", "==", s.doc_no));
+              const uSnap = await getDocs(uq);
+              if (!uSnap.empty) {
+                userProfileCache[s.doc_no] = uSnap.docs[0].data();
+              }
+            } catch (e) {
+              console.warn("Could not fetch profile for doc_no:", s.doc_no, e);
+            }
+          }
+
+          const cached = userProfileCache[s.doc_no];
+          if (cached) {
+            if (!hasName) s.nama = cached.nama || cached.full_name || cached.name || cached["FULL NAME (AS PER IC / PASSPORT)"] || "";
+            if (!hasEmail) s.email = cached.email || cached.email_address || cached["EMAIL ADDRESS"] || "";
+            if (!s.no_phone) s.no_phone = cached.no_phone || cached.phone || cached["PHONE NUMBER"] || "";
+            if (!s.gender) s.gender = cached.gender || cached["GENDER"] || "";
+          }
+        }
+      }
+    }
+
+    function renderRows(shifts) {
+      const tbody = document.getElementById("attendanceTbody");
+      
+      if (shifts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">No records found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = "";
+      shifts.forEach((s) => {
+        const tr = document.createElement("tr");
+        tr.id = `row_${s.id}`;
+
+        // Robust property extraction covering all possible field names
+        const nameVal = s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"] || "";
+        const emailVal = s.email || s.email_address || s["EMAIL ADDRESS"] || "";
+        const phoneVal = s.no_phone || s.phone || s["PHONE NUMBER"] || "";
+        const genderVal = (s.gender || "MALE").toUpperCase();
+
+        const hours = parseFloat(s.hours_worked || s.hours || 0);
+        const rate = parseFloat(s.rate || 18);
+        const computedWages = (s.wages && s.wages !== "") ? s.wages : (hours * rate).toFixed(2);
+
+        tr.innerHTML = `
+          <td style="text-align:center;">
+            <button id="btn_save_${s.id}" class="btn-save-row" onclick="saveRow('${s.id}')">
+              <i class="ph ph-floppy-disk-bold"></i> Save
+            </button>
+          </td>
+          <td><input type="text" class="cell-input" id="working_date_${s.id}" value="${s.date || s.working_date || ''}" onchange="markDirty('${s.id}')"></td>
+          <td class="cell-readonly">${s.timestamp || s.created_at ? new Date(s.created_at?.seconds * 1000 || Date.now()).toLocaleString() : ''}</td>
+          <td><input type="text" class="cell-input" id="shift_${s.id}" value="${s.scheduled_shift || s.shift || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="email_${s.id}" value="${emailVal}" onchange="markDirty('${s.id}')"></td>
+          <td class="cell-readonly"><strong>${s.doc_no || ''}</strong></td>
+          <td class="cell-readonly"><strong>${s.voucher_no || s.voucher || ''}</strong></td>
+          <td><input type="text" class="cell-input" id="nama_${s.id}" value="${nameVal}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="dept_${s.id}" value="${s.department || ''}" onchange="markDirty('${s.id}')"></td>
+          <td class="cell-readonly">${s.sign_out_timestamp || s.sign_out_time || ''}</td>
+          <td><input type="text" class="cell-input" id="in_${s.id}" value="${s.sign_in_time || s.in || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="out_${s.id}" value="${s.sign_out_time || s.out || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="number" step="0.1" class="cell-input" id="hours_${s.id}" value="${hours}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
+          <td><input type="number" step="1" class="cell-input" id="rate_${s.id}" value="${rate}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
+          <td><input type="number" step="0.01" class="cell-input" id="wages_${s.id}" value="${computedWages}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="date" class="cell-input" id="process_date_${s.id}" value="${s.process_date || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="date" class="cell-input" id="payment_date_${s.id}" value="${s.payment_date || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="remarks_${s.id}" value="${s.remarks || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="notes_${s.id}" value="${s.notes || ''}" onchange="markDirty('${s.id}')"></td>
+          <td><input type="text" class="cell-input" id="phone_${s.id}" value="${phoneVal}" onchange="markDirty('${s.id}')"></td>
+          <td>
+            <select class="cell-input" id="gender_${s.id}" onchange="markDirty('${s.id}')">
+              <option value="MALE" ${genderVal === 'MALE' ? 'selected' : ''}>MALE</option>
+              <option value="FEMALE" ${genderVal === 'FEMALE' ? 'selected' : ''}>FEMALE</option>
+            </select>
+          </td>
+          <td>
+            <select class="cell-input" id="payment_mode_${s.id}" onchange="markDirty('${s.id}')">
+              <option value="Cash" ${(s.payment_mode || 'Cash') === 'Cash' ? 'selected' : ''}>Cash</option>
+              <option value="ONLINE" ${s.payment_mode === 'ONLINE' ? 'selected' : ''}>ONLINE</option>
+            </select>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function markDirty(shiftId) {
+      const tr = document.getElementById(`row_${shiftId}`);
+      const btn = document.getElementById(`btn_save_${shiftId}`);
+      if (tr) tr.classList.add("row-dirty");
+      if (btn) btn.classList.add("btn-save-active");
+    }
+
+    function recalcWages(shiftId) {
+      const h = parseFloat(document.getElementById(`hours_${shiftId}`).value || 0);
+      const r = parseFloat(document.getElementById(`rate_${shiftId}`).value || 0);
+      document.getElementById(`wages_${shiftId}`).value = (h * r).toFixed(2);
+    }
+
+    function filterTable() {
+      const search = document.getElementById("tableSearch").value.toLowerCase();
+      const filter = document.getElementById("statusFilter").value;
+
+      const filtered = allShifts.filter((s) => {
+        const nameVal = (s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"] || "").toLowerCase();
+        const emailVal = (s.email || s.email_address || s["EMAIL ADDRESS"] || "").toLowerCase();
+        const voucherVal = (s.voucher_no || s.voucher || "").toLowerCase();
+        const docVal = (s.doc_no || "").toLowerCase();
+        const deptVal = (s.department || "").toLowerCase();
+
+        const matchesSearch = 
+          voucherVal.includes(search) ||
+          docVal.includes(search) ||
+          nameVal.includes(search) ||
+          emailVal.includes(search) ||
+          deptVal.includes(search);
+
+        const isPaid = !!s.payment_date;
+        const matchesStatus = 
+          filter === "ALL" ||
+          (filter === "PAID" && isPaid) ||
+          (filter === "UNPAID" && !isPaid);
+
+        return matchesSearch && matchesStatus;
+      });
+
+      renderRows(filtered);
+    }
+
+    async function saveRow(shiftId) {
+      const overlay = document.getElementById("statusOverlay");
+      const title = document.getElementById("statusTitle");
+      const msg = document.getElementById("statusMsg");
+      const spinner = document.getElementById("spinner");
+      const closeBtn = document.getElementById("closeBtn");
+
+      overlay.style.display = "flex";
+      spinner.style.display = "block";
+      closeBtn.style.display = "none";
+
+      const updatedData = {
+        working_date: document.getElementById(`working_date_${shiftId}`).value,
+        scheduled_shift: document.getElementById(`shift_${shiftId}`).value,
+        email: document.getElementById(`email_${shiftId}`).value,
+        nama: document.getElementById(`nama_${shiftId}`).value,
+        department: document.getElementById(`dept_${shiftId}`).value,
+        sign_in_time: document.getElementById(`in_${shiftId}`).value,
+        sign_out_time: document.getElementById(`out_${shiftId}`).value,
+        hours_worked: document.getElementById(`hours_${shiftId}`).value,
+        rate: document.getElementById(`rate_${shiftId}`).value,
+        wages: document.getElementById(`wages_${shiftId}`).value,
+        process_date: document.getElementById(`process_date_${shiftId}`).value,
+        payment_date: document.getElementById(`payment_date_${shiftId}`).value,
+        payment_status: document.getElementById(`payment_date_${shiftId}`).value ? "PAID" : "UNPAID",
+        remarks: document.getElementById(`remarks_${shiftId}`).value,
+        notes: document.getElementById(`notes_${shiftId}`).value,
+        no_phone: document.getElementById(`phone_${shiftId}`).value,
+        gender: document.getElementById(`gender_${shiftId}`).value,
+        payment_mode: document.getElementById(`payment_mode_${shiftId}`).value,
+        updated_at: new Date()
+      };
+
+      try {
+        if (window.db && window.firestoreTools) {
+          const { doc, updateDoc } = window.firestoreTools;
+
+          const shiftDocRef = doc(window.db, "shifts", shiftId);
+          await updateDoc(shiftDocRef, updatedData);
+
+          // Update local state cache
+          const localShift = allShifts.find(s => s.id === shiftId);
+          if (localShift) Object.assign(localShift, updatedData);
+
+          spinner.style.display = "none";
+          title.textContent = "Row Updated";
+          title.style.color = "var(--success-green)";
+          msg.innerHTML = `Changes saved successfully.`;
+          closeBtn.style.display = "block";
+
+          // Reset dirty UI state
+          const tr = document.getElementById(`row_${shiftId}`);
+          const btn = document.getElementById(`btn_save_${shiftId}`);
+          if (tr) tr.classList.remove("row-dirty");
+          if (btn) btn.classList.remove("btn-save-active");
+        }
+      } catch (err) {
+        console.error("Save error:", err);
+        spinner.style.display = "none";
+        title.textContent = "Save Failed";
+        title.style.color = "#dc3545";
+        msg.textContent = "Could not save row changes. Please try again.";
+        closeBtn.style.display = "block";
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      setTimeout(loadAttendanceTable, 500);
+    });
+  </script>
+</body>
+</html>
