@@ -4,8 +4,33 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MITEC — Staff Duty Entry</title>
-  
+
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- 🚀 FIREBASE FIRESTORE INTEGRATION -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      addDoc,
+      query, 
+      where 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "casualmitec-apps"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firestoreTools = { collection, getDocs, addDoc, query, where };
+    console.log("🔥 Firebase Firestore connected cleanly on Sign-In Page!");
+  </script>
+
   <style>
     :root {
       --mitec-blue: #092253;
@@ -46,7 +71,7 @@
       border: 2px solid rgba(255,255,255,0.2); object-fit: cover; 
       background: rgba(255,255,255,0.1); 
     }
-    
+
     .profile-info { flex: 1; }
     .profile-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; margin-bottom: 4px; display: block; }
     .profile-name { font-size: 16px; font-weight: 600; margin: 0; }
@@ -78,7 +103,7 @@
       outline: none; transition: border 0.2s;
       appearance: none; color: var(--text-main);
     }
-    
+
     .input-field:focus, select:focus { border-color: var(--mitec-blue); }
 
     .btn-submit {
@@ -119,7 +144,7 @@
 
     <div class="form-card">
       <span class="section-title">Duty Registration</span>
-      
+
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-hash input-icon"></i>
@@ -152,7 +177,7 @@
         </div>
       </div>
 
-<div class="field">
+      <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-clock input-icon"></i>
           <select id="shift" required>
@@ -216,15 +241,17 @@
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      nameEl.textContent = (record.name_mykad || record.full_name || "Staff Member");
-      if (record.photo_link) avatarEl.src = convertToDirectLink(record.photo_link);
+      nameEl.textContent = (record.name_mykad || record["FULL NAME (AS PER IC / PASSPORT)"] || record.full_name || "Staff Member");
+      
+      const photo = record.photo_link || record["PASSPORT-SIZE PHOTO LINK"];
+      if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
     async function submitAttendance() {
       const voucher = document.getElementById("voucherNo").value.trim();
       const dept = document.getElementById("dept").value;
       const shift = document.getElementById("shift").value;
-      const docNo = localStorage.getItem("mcl_doc_no");
+      const docNo = localStorage.getItem("mcl_doc_no") || JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}")["IC / PASSPORT NUMBER"];
 
       if (!voucher || !dept || !shift) {
         alert("Action Required: Please complete all fields.");
@@ -243,7 +270,66 @@
       const closeBtn = document.getElementById("closeBtn");
 
       overlay.style.display = "flex";
+      spinner.style.display = "block";
+      closeBtn.style.display = "none";
 
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const timeFormatted = now.toLocaleTimeString('en-GB', { 
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
+      });
+
+      // --- STEP 1: Attempt Firestore First ---
+      try {
+        if (window.firestoreTools && window.db) {
+          const { collection, query, where, getDocs, addDoc } = window.firestoreTools;
+
+          // Check if already signed in today via Firestore
+          const q = query(
+            collection(window.db, "shifts"), 
+            where("doc_no", "==", docNo),
+            where("date", "==", todayStr)
+          );
+          const existingDocs = await getDocs(q);
+
+          if (!existingDocs.empty) {
+            spinner.style.display = "none";
+            title.textContent = "Already Signed In";
+            title.style.color = "#dc3545";
+            msg.textContent = "You have already signed in today.";
+            closeBtn.style.display = "flex";
+            closeBtn.textContent = "Go to Dashboard";
+            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+            return;
+          }
+
+          // Create record in Firestore
+          await addDoc(collection(window.db, "shifts"), {
+            doc_no: docNo,
+            voucher_no: voucher,
+            department: dept,
+            scheduled_shift: shift,
+            date: todayStr,
+            sign_in_time: timeFormatted,
+            sign_out_time: "",
+            hours_worked: "0.0",
+            created_at: new Date()
+          });
+
+          spinner.style.display = "none";
+          title.textContent = "Entry Confirmed";
+          title.style.color = "#28a745";
+          msg.innerHTML = `You have successfully signed in at <strong>${timeFormatted}</strong>`;
+          closeBtn.style.display = "flex";
+          closeBtn.textContent = "Return to Home";
+          closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+          return;
+        }
+      } catch (fsErr) {
+        console.warn("Firestore sign-in submission failed, falling back to Apps Script:", fsErr);
+      }
+
+      // --- STEP 2: Fallback to Google Apps Script ---
       try {
         const url = `${WEB_APP_URL}?action=signIn&doc_no=${encodeURIComponent(docNo)}&voucher=${encodeURIComponent(voucher)}&dept=${encodeURIComponent(dept)}&shift=${encodeURIComponent(shift)}`;
         const res = await fetch(url);
@@ -252,28 +338,20 @@
         spinner.style.display = "none";
 
         if (data.ok) {
-          const now = new Date();
-          const timestamp = now.toLocaleTimeString('en-GB', { 
-            hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
-          });
-
           title.textContent = "Entry Confirmed";
           title.style.color = "#28a745";
-          msg.innerHTML = `You have successfully signed in at <strong>${timestamp}</strong>`;
+          msg.innerHTML = `You have successfully signed in at <strong>${timeFormatted}</strong>`;
           closeBtn.style.display = "flex";
           closeBtn.textContent = "Return to Home";
-          closeBtn.onclick = () => { window.location.href='dashboard.html' };
+          closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
         } else {
-          // --- TARGET PART MODIFICATION START ---
           if (data.message && data.message.includes("already signed in")) {
-            // Contextually handle Scenario B (Duplicate Attempt)
             title.textContent = "Already Signed In";
             title.style.color = "#dc3545";
-            msg.textContent = data.message; // Yields "You have already signed in today."
+            msg.textContent = data.message;
             closeBtn.textContent = "Go to Dashboard";
-            closeBtn.onclick = () => { window.location.href='dashboard.html' };
+            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
           } else {
-            // Contextually handle Scenario C or administrative errors (e.g., Script Lock)
             title.textContent = "Submission Failed";
             title.style.color = "#dc3545";
             msg.textContent = data.message || "Registration Failed";
@@ -281,23 +359,27 @@
             closeBtn.onclick = () => { overlay.style.display = "none"; };
           }
           closeBtn.style.display = "flex";
-          // --- TARGET PART MODIFICATION END ---
         }
       } catch (err) {
-        // Handle Scenario E (Loss of mobile network connectivity / server timeout)
         spinner.style.display = "none";
         title.textContent = "System Error";
         title.style.color = "#dc3545";
         msg.textContent = "Unable to process request. Please check your internet connection and try again.";
         closeBtn.style.display = "flex";
         closeBtn.textContent = "Try Again";
-        closeBtn.onclick = () => { overlay.style.display="none"; };
+        closeBtn.onclick = () => { overlay.style.display = "none"; };
       }
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      if (!localStorage.getItem("mcl_doc_no")) window.location.href = "index.html";
-      else loadIdentity();
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"];
+      
+      if (!docNo) {
+        window.location.href = "index.html";
+      } else {
+        loadIdentity();
+      }
     });
   </script>
 </body>
