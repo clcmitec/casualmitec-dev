@@ -3,11 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Casual Labour Dashboard</title>
+  <title>Casual Labour Dashboard (Firebase Test)</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- 🚀 FIREBASE FIRESTORE INTEGRATION (SANDBOX TEST) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      query, 
+      where 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "casualmitec-apps"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firestoreTools = { collection, getDocs, query, where };
+    console.log("🔥 Firebase Firestore connected cleanly on Dashboard!");
+  </script>
 
   <style>
     :root {
@@ -307,11 +330,11 @@
 
   async function fillWorkerData() {
     const worker = getStoredWorker();
-    const docNo = worker.mykad_passport_no || localStorage.getItem("mcl_doc_no"); 
-    const nameStr = worker.name_mykad || worker.full_name || "Worker";
+    const docNo = worker["IC / PASSPORT NUMBER"] || worker.mykad_passport_no || localStorage.getItem("mcl_doc_no"); 
+    const nameStr = worker["FULL NAME (AS PER IC / PASSPORT)"] || worker.name_mykad || worker.full_name || "Worker";
     document.getElementById("heroName").textContent = toProperCase(nameStr);
 
-    const photoUrl = worker.photo_link || "";
+    const photoUrl = worker["PASSPORT-SIZE PHOTO LINK"] || worker.photo_link || "";
     setImageWithFallback("headerPhoto", photoUrl, "https://via.placeholder.com/160?text=MITEC");
 
     if (docNo) {
@@ -324,6 +347,36 @@
       const vouchVal = document.getElementById("dashVoucher");
       const hoursVal = document.getElementById("dashHours");
 
+      // STEP 1: Query Firestore 'shifts' collection first
+      try {
+        if (window.firestoreTools) {
+          const { collection, query, where, getDocs } = window.firestoreTools;
+          const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+          const q = query(
+            collection(window.db, "shifts"), 
+            where("doc_no", "==", docNo),
+            where("date", "==", todayStr)
+          );
+          const querySnapshot = await getDocs(q);
+
+          if (!querySnapshot.empty) {
+            console.log("🔥 Shift data found via Firestore!");
+            const shiftData = querySnapshot.docs[0].data();
+            loaderState.style.display = "none";
+            summaryGrid.style.display = "grid";
+
+            inVal.textContent = shiftData.sign_in_time || "--:--";
+            outVal.textContent = shiftData.sign_out_time || "--:--";
+            vouchVal.textContent = shiftData.voucher_no || "-";
+            hoursVal.textContent = shiftData.hours_worked || "0.0";
+            return;
+          }
+        }
+      } catch (fsErr) {
+        console.warn("Firestore shift lookup failed, falling back to Apps Script:", fsErr);
+      }
+
+      // STEP 2: Fallback to Google Apps Script API
       try {
         const res = await fetch(`${WEB_APP_URL}?action=get_today_summary&doc_no=${encodeURIComponent(docNo)}`, { cache: "no-cache" });
         const data = await res.json();
