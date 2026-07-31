@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MITEC — Staff Duty Entry</title>
+  <title>MITEC — Staff Duty Sign In</title>
 
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -13,8 +13,8 @@
     import { 
       getFirestore, 
       collection, 
+      addDoc, 
       getDocs, 
-      addDoc,
       query, 
       where 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -27,7 +27,7 @@
     const db = getFirestore(app);
 
     window.db = db;
-    window.firestoreTools = { collection, getDocs, addDoc, query, where };
+    window.firestoreTools = { collection, addDoc, getDocs, query, where };
     console.log("🔥 Firebase Firestore connected cleanly on Sign-In Page!");
   </script>
 
@@ -89,15 +89,17 @@
     }
 
     .field { margin-bottom: 16px; }
+
     .input-wrapper { position: relative; display: flex; align-items: center; }
 
     .input-icon {
       position: absolute; left: 14px;
       font-size: 18px; color: var(--text-muted);
+      pointer-events: none;
     }
 
     .input-field, select {
-      width: 100%; height: 50px; border-radius: 8px;
+      width: 100%; height: 52px; border-radius: 8px;
       border: 1px solid var(--border-color); background: #fff;
       padding: 0 12px 0 44px; font-size: 15px;
       outline: none; transition: border 0.2s;
@@ -173,15 +175,17 @@
     </div>
 
     <div class="form-card">
-      <span class="section-title">Duty Registration</span>
+      <span class="section-title">Record Duty Attendance</span>
 
+      <!-- 1. VOUCHER NUMBER -->
       <div class="field">
         <div class="input-wrapper">
-          <i class="ph ph-hash input-icon"></i>
-          <input type="text" id="voucherNo" class="input-field" placeholder="6-Digit Voucher No." maxlength="6" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+          <i class="ph ph-ticket input-icon"></i>
+          <input type="text" id="inpVoucher" class="input-field" placeholder="Voucher Number (6-Digits)" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
         </div>
       </div>
 
+      <!-- 2. DEPARTMENT -->
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-briefcase input-icon"></i>
@@ -207,6 +211,7 @@
         </div>
       </div>
 
+      <!-- 3. SHIFT START TIME -->
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-clock input-icon"></i>
@@ -240,9 +245,9 @@
         </div>
       </div>
 
-      <button class="btn-submit" onclick="submitAttendance()">
-        <i class="ph ph-check-circle"></i>
-        Confirm Attendance
+      <button id="btnSubmit" class="btn-submit" onclick="submitAttendance()">
+        <i class="ph ph-sign-in"></i>
+        Confirm Sign In
       </button>
     </div>
   </div>
@@ -252,7 +257,7 @@
     <div class="overlay-card">
       <div id="spinner" class="spinner"></div>
       <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
-      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we record your entry.</p>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we log your attendance.</p>
       <button id="closeBtn" class="btn-submit" style="display: none; margin-top: 20px; width: 100%;" onclick="window.location.href='dashboard.html'">Return to Home</button>
     </div>
   </div>
@@ -272,29 +277,40 @@
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      nameEl.textContent = (record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || "Staff Member");
+      
+      const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
+      nameEl.textContent = fullName;
       
       const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
     async function submitAttendance() {
-      const voucher = document.getElementById("voucherNo").value.trim();
-      const dept = document.getElementById("dept").value;
-      const shift = document.getElementById("shift").value;
-      
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
+      
+      const voucher = document.getElementById("inpVoucher").value.trim();
+      const departmentVal = document.getElementById("dept").value;
+      const shiftVal = document.getElementById("shift").value;
 
-      if (!voucher || !dept || !shift) {
-        alert("Action Required: Please complete all fields.");
+      if (!voucher || !/^\d{6}$/.test(voucher)) {
+        alert("Please enter a valid 6-digit numerical Voucher Number.");
+        return;
+      }
+      if (!departmentVal) {
+        alert("Please select your Department.");
+        return;
+      }
+      if (!shiftVal) {
+        alert("Please select your Scheduled Shift.");
         return;
       }
 
-      if (voucher.length !== 6) {
-        alert("Action Required: Voucher Number must be exactly 6 digits.");
-        return;
-      }
+      // Extract full user profile metadata to write directly to Firestore
+      const workerName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "";
+      const workerEmail = record.email || record["EMAIL ADDRESS"] || record.email_address || "";
+      const workerPhone = record.phone || record.no_phone || record["PHONE NUMBER"] || "";
+      const workerGender = record.gender || record["GENDER"] || "";
 
       const overlay = document.getElementById("statusOverlay");
       const title = document.getElementById("statusTitle");
@@ -307,64 +323,66 @@
       closeBtn.style.display = "none";
 
       const now = new Date();
-      const todayStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
       const timeFormatted = now.toLocaleTimeString('en-GB', { 
         hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
       });
+      const todayStr = now.toISOString().split("T")[0];
 
-      // --- FIRESTORE DIRECT INTEGRATION ---
       try {
         if (window.db && window.firestoreTools) {
-          const { collection, query, where, getDocs, addDoc } = window.firestoreTools;
+          const { collection, addDoc, query, where, getDocs } = window.firestoreTools;
 
-          // 1. Check Firestore for duplicate shift today
+          // Guard against duplicate sign-ins on the same day
           const q = query(
-            collection(window.db, "shifts"), 
+            collection(window.db, "shifts"),
             where("doc_no", "==", docNo),
             where("date", "==", todayStr)
           );
-          
-          const querySnapshot = await getDocs(q);
+          const existingSnapshot = await getDocs(q);
 
-          if (!querySnapshot.empty) {
+          if (!existingSnapshot.empty) {
             spinner.style.display = "none";
             title.textContent = "Already Signed In";
             title.style.color = "#dc3545";
-            msg.textContent = "You have already recorded a shift for today.";
+            msg.textContent = "You have already signed in for today's shift.";
             closeBtn.style.display = "block";
-            closeBtn.textContent = "Go to Dashboard";
+            closeBtn.textContent = "Return to Dashboard";
             closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
             return;
           }
 
-          // 2. Add new shift to Firestore
+          // Write new shift record with Name, Email, Phone, and Gender
           await addDoc(collection(window.db, "shifts"), {
             doc_no: docNo,
             voucher_no: voucher,
-            department: dept,
-            scheduled_shift: shift,
+            department: departmentVal,
+            scheduled_shift: shiftVal,
             date: todayStr,
             sign_in_time: timeFormatted,
             sign_out_time: "",
             hours_worked: "0.0",
+            // Captured Profile Data
+            nama: workerName,
+            email: workerEmail,
+            no_phone: workerPhone,
+            gender: workerGender,
             created_at: new Date()
           });
 
           spinner.style.display = "none";
-          title.textContent = "Entry Confirmed";
+          title.textContent = "Sign In Successful";
           title.style.color = "#28a745";
-          msg.innerHTML = `Signed in successfully at <strong>${timeFormatted}</strong>`;
+          msg.innerHTML = `Signed in at <strong>${timeFormatted}</strong><br>Voucher: <strong>${voucher}</strong>`;
           closeBtn.style.display = "block";
           closeBtn.textContent = "Return to Home";
           closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
-          return;
         }
-      } catch (fsErr) {
-        console.error("Firestore Error:", fsErr);
+      } catch (err) {
+        console.error("Sign-in submission error:", err);
         spinner.style.display = "none";
-        title.textContent = "System Error";
+        title.textContent = "Submission Error";
         title.style.color = "#dc3545";
-        msg.textContent = "Could not record shift. Please check connection and try again.";
+        msg.textContent = "Could not record sign in. Please check connection and try again.";
         closeBtn.style.display = "block";
         closeBtn.textContent = "Try Again";
         closeBtn.onclick = () => { overlay.style.display = "none"; };
@@ -376,7 +394,7 @@
       const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
       
       if (!docNo) {
-        window.location.href = "index.html";
+        window.location.href = "indexc.html";
       } else {
         loadIdentity();
       }
