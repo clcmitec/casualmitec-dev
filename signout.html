@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MITEC — Staff Duty Departure</title>
+  <title>MITEC — Staff Duty Sign Out</title>
 
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -29,7 +29,7 @@
 
     window.db = db;
     window.firestoreTools = { collection, getDocs, doc, updateDoc, query, where };
-    console.log("🔥 Firebase Firestore connected cleanly on Sign-Out Page!");
+    console.log("🔥 Firebase Firestore connected on Sign-Out Page!");
   </script>
 
   <style>
@@ -89,24 +89,25 @@
       margin-bottom: 20px; display: block; border-bottom: 1px solid #eee; padding-bottom: 8px;
     }
 
-    .shift-summary {
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 14px 16px;
-      margin-bottom: 20px;
+    .field { margin-bottom: 16px; }
+
+    .input-wrapper { position: relative; display: flex; align-items: center; }
+
+    .input-icon {
+      position: absolute; left: 14px;
+      font-size: 18px; color: var(--text-muted);
+      pointer-events: none;
     }
 
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: 14px;
+    .input-field {
+      width: 100%; height: 52px; border-radius: 8px;
+      border: 1px solid var(--border-color); background: #fff;
+      padding: 0 12px 0 44px; font-size: 15px;
+      outline: none; transition: border 0.2s;
+      appearance: none; color: var(--text-main);
     }
-    .summary-row:last-child { margin-bottom: 0; }
 
-    .summary-label { color: var(--text-muted); font-weight: 500; }
-    .summary-value { color: var(--text-main); font-weight: 700; }
+    .input-field:focus { border-color: var(--mitec-blue); }
 
     .btn-submit {
       width: 100%; height: 52px; border-radius: 8px;
@@ -117,47 +118,30 @@
       margin-top: 8px;
     }
     .btn-submit:hover { background: var(--mitec-blue-dark); }
-    .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
 
-    /* FROSTED GLASS OVERLAY & CARD STYLING */
+    /* FROSTED GLASS OVERLAY */
     .overlay {
-      position: fixed; 
-      top: 0; left: 0; 
-      width: 100%; height: 100%;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(9, 34, 83, 0.75);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      display: none; 
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: center;
-      z-index: 1000; 
-      padding: 20px;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
     }
 
     .overlay-card {
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 28px 20px;
-      max-width: 340px;
-      width: 100%;
-      text-align: center;
+      background: #ffffff; border-radius: 20px; padding: 28px 20px;
+      max-width: 340px; width: 100%; text-align: center;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      display: flex; flex-direction: column; align-items: center;
     }
 
     .spinner { 
-      width: 40px; height: 40px; 
-      border: 3px solid #eee; 
-      border-top: 3px solid var(--mitec-blue); 
-      border-radius: 50%; 
-      animation: spin 0.8s linear infinite; 
-      margin-bottom: 20px; 
+      width: 40px; height: 40px; border: 3px solid #eee; 
+      border-top: 3px solid var(--mitec-blue); border-radius: 50%; 
+      animation: spin 0.8s linear infinite; margin-bottom: 20px; 
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-
   </style>
 </head>
 <body>
@@ -178,23 +162,15 @@
     <div class="form-card">
       <span class="section-title">End Duty Shift</span>
 
-      <!-- ACTIVE SHIFT SUMMARY -->
-      <div class="shift-summary">
-        <div class="summary-row">
-          <span class="summary-label">Sign In Time:</span>
-          <span class="summary-value" id="valSignIn">Loading...</span>
-        </div>
-        <div class="summary-row">
-          <span class="summary-label">Voucher No:</span>
-          <span class="summary-value" id="valVoucher">--</span>
-        </div>
-        <div class="summary-row">
-          <span class="summary-label">Department:</span>
-          <span class="summary-value" id="valDept">--</span>
+      <!-- VOUCHER NUMBER INPUT FOR SIGN OUT VERIFICATION -->
+      <div class="field">
+        <div class="input-wrapper">
+          <i class="ph ph-ticket input-icon"></i>
+          <input type="text" id="inpVoucherSignOut" class="input-field" placeholder="Enter Voucher Number (6-Digits)" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
         </div>
       </div>
 
-      <button id="btnConfirmOut" class="btn-submit" onclick="submitSignOut()" disabled>
+      <button id="btnSignOut" class="btn-submit" onclick="submitSignOut()">
         <i class="ph ph-sign-out"></i>
         Confirm Sign Out
       </button>
@@ -206,15 +182,12 @@
     <div class="overlay-card">
       <div id="spinner" class="spinner"></div>
       <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
-      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we log your sign out.</p>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait...</p>
       <button id="closeBtn" class="btn-submit" style="display: none; margin-top: 20px; width: 100%;" onclick="window.location.href='dashboard.html'">Return to Home</button>
     </div>
   </div>
 
   <script>
-    let activeShiftDocId = null;
-    let signInTimeStr = null;
-
     function convertToDirectLink(url) {
       if (!url) return "";
       let stringUrl = String(url);
@@ -229,86 +202,45 @@
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      nameEl.textContent = (record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || "Staff Member");
+      
+      const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
+      nameEl.textContent = fullName;
       
       const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
-    function calculateHoursWorked(startTimeStr, endTimeStr) {
-      try {
-        const [h1, m1] = startTimeStr.split(':').map(Number);
-        const [h2, m2] = endTimeStr.split(':').map(Number);
-        
-        let startMinutes = h1 * 60 + m1;
-        let endMinutes = h2 * 60 + m2;
-        
-        // Handle overnight shifts crossing midnight
-        if (endMinutes < startMinutes) {
-          endMinutes += 24 * 60;
-        }
+    function calculateHoursWorked(signInStr, signOutStr) {
+      if (!signInStr || !signOutStr) return "0.0";
+      
+      const parseTime = (tStr) => {
+        const parts = tStr.split(":");
+        if (parts.length < 2) return null;
+        let hours = parseInt(parts[0], 10);
+        let minutes = parseInt(parts[1], 10);
+        if (tStr.toLowerCase().includes("pm") && hours < 12) hours += 12;
+        if (tStr.toLowerCase().includes("am") && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
 
-        const diffMinutes = endMinutes - startMinutes;
-        return (diffMinutes / 60).toFixed(1);
-      } catch (e) {
-        return "0.0";
-      }
-    }
+      const startMins = parseTime(signInStr);
+      const endMins = parseTime(signOutStr);
 
-    async function loadTodayShift() {
-      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
-      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
-      const todayStr = new Date().toISOString().split("T")[0];
+      if (startMins === null || endMins === null) return "0.0";
 
-      try {
-        if (window.db && window.firestoreTools) {
-          const { collection, query, where, getDocs } = window.firestoreTools;
+      let diff = endMins - startMins;
+      if (diff < 0) diff += 24 * 60; // Overnight shift calculation
 
-          const q = query(
-            collection(window.db, "shifts"),
-            where("doc_no", "==", docNo),
-            where("date", "==", todayStr)
-          );
-
-          const querySnapshot = await getDocs(q);
-
-          if (querySnapshot.empty) {
-            document.getElementById("valSignIn").textContent = "No active shift";
-            document.getElementById("valSignIn").style.color = "#dc3545";
-            return;
-          }
-
-          const activeDoc = querySnapshot.docs[0];
-          const shiftData = activeDoc.data();
-
-          if (shiftData.sign_out_time && shiftData.sign_out_time !== "") {
-            document.getElementById("valSignIn").textContent = shiftData.sign_in_time || "--:--";
-            document.getElementById("valVoucher").textContent = shiftData.voucher_no || "--";
-            document.getElementById("valDept").textContent = shiftData.department || "--";
-            
-            const btn = document.getElementById("btnConfirmOut");
-            btn.disabled = true;
-            btn.textContent = "Already Signed Out Today";
-            return;
-          }
-
-          activeShiftDocId = activeDoc.id;
-          signInTimeStr = shiftData.sign_in_time;
-
-          document.getElementById("valSignIn").textContent = shiftData.sign_in_time || "--:--";
-          document.getElementById("valVoucher").textContent = shiftData.voucher_no || "--";
-          document.getElementById("valDept").textContent = shiftData.department || "--";
-          document.getElementById("btnConfirmOut").disabled = false;
-        }
-      } catch (err) {
-        console.error("Error loading today shift:", err);
-        document.getElementById("valSignIn").textContent = "Failed to load shift";
-      }
+      return (diff / 60).toFixed(1);
     }
 
     async function submitSignOut() {
-      if (!activeShiftDocId || !signInTimeStr) {
-        alert("No active sign-in record found to sign out.");
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
+      const voucherVal = document.getElementById("inpVoucherSignOut").value.trim();
+
+      if (!voucherVal || !/^\d{6}$/.test(voucherVal)) {
+        alert("Please enter a valid 6-digit numerical Voucher Number.");
         return;
       }
 
@@ -322,36 +254,66 @@
       spinner.style.display = "block";
       closeBtn.style.display = "none";
 
-      const now = new Date();
-      const signOutTimeStr = now.toLocaleTimeString('en-GB', { 
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
-      });
-
-      const totalHours = calculateHoursWorked(signInTimeStr, signOutTimeStr);
-
       try {
         if (window.db && window.firestoreTools) {
-          const { doc, updateDoc } = window.firestoreTools;
+          const { collection, query, where, getDocs, doc, updateDoc } = window.firestoreTools;
 
-          const shiftDocRef = doc(window.db, "shifts", activeShiftDocId);
+          // Query Firestore for active shift matching BOTH IC/Passport AND Voucher Number
+          const q = query(
+            collection(window.db, "shifts"),
+            where("doc_no", "==", docNo),
+            where("voucher_no", "==", voucherVal)
+          );
+
+          const snapshot = await getDocs(q);
+
+          let activeShiftDoc = null;
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (!data.sign_out_time || data.sign_out_time === "") {
+              activeShiftDoc = { id: docSnap.id, ...data };
+            }
+          });
+
+          if (!activeShiftDoc) {
+            spinner.style.display = "none";
+            title.textContent = "Sign Out Failed";
+            title.style.color = "#dc3545";
+            msg.textContent = `No active shift found for Voucher: ${voucherVal}. Please verify your voucher number.`;
+            closeBtn.style.display = "block";
+            closeBtn.textContent = "Try Again";
+            closeBtn.onclick = () => { overlay.style.display = "none"; };
+            return;
+          }
+
+          const now = new Date();
+          const signOutTimeFormatted = now.toLocaleTimeString('en-GB', { 
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
+          });
+
+          const hoursWorked = calculateHoursWorked(activeShiftDoc.sign_in_time, signOutTimeFormatted);
+
+          // Update Firestore record
+          const shiftDocRef = doc(window.db, "shifts", activeShiftDoc.id);
           await updateDoc(shiftDocRef, {
-            sign_out_time: signOutTimeStr,
-            hours_worked: totalHours,
+            sign_out_time: signOutTimeFormatted,
+            hours_worked: hoursWorked,
+            sign_out_timestamp: now.toISOString(),
             updated_at: new Date()
           });
 
           spinner.style.display = "none";
-          title.textContent = "Sign Out Confirmed";
+          title.textContent = "Sign Out Successful";
           title.style.color = "#28a745";
-          msg.innerHTML = `Signed out at <strong>${signOutTimeStr}</strong><br>Total Hours Logged: <strong>${totalHours} hrs</strong>`;
+          msg.innerHTML = `Voucher <strong>${voucherVal}</strong> signed out at <strong>${signOutTimeFormatted}</strong>.<br>Hours Worked: <strong>${hoursWorked} hrs</strong>`;
           closeBtn.style.display = "block";
           closeBtn.textContent = "Return to Home";
           closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
         }
       } catch (err) {
-        console.error("Sign-out error:", err);
+        console.error("Sign-out submission error:", err);
         spinner.style.display = "none";
-        title.textContent = "System Error";
+        title.textContent = "Submission Error";
         title.style.color = "#dc3545";
         msg.textContent = "Could not record sign out. Please check connection and try again.";
         closeBtn.style.display = "block";
@@ -368,8 +330,6 @@
         window.location.href = "index.html";
       } else {
         loadIdentity();
-        // Delay shift check briefly to ensure Firebase SDK initializes
-        setTimeout(loadTodayShift, 500);
       }
     });
   </script>
