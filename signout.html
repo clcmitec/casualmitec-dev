@@ -166,7 +166,7 @@
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-ticket input-icon"></i>
-          <input type="text" id="inpVoucherSignOut" class="input-field" placeholder="Enter Voucher Number (6-Digits)" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
+          <input type="text" id="inpVoucherSignOut" class="input-field" placeholder="Enter Voucher Number (6-Digits)" maxlength="6" pattern="\d{1,6}" inputmode="numeric" required>
         </div>
       </div>
 
@@ -202,17 +202,17 @@
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      
+
       const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
       nameEl.textContent = fullName;
-      
+
       const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
     function calculateHoursWorked(signInStr, signOutStr) {
       if (!signInStr || !signOutStr) return "0.0";
-      
+
       const parseTime = (tStr) => {
         const parts = tStr.split(":");
         if (parts.length < 2) return null;
@@ -237,10 +237,10 @@
     async function submitSignOut() {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
-      const voucherVal = document.getElementById("inpVoucherSignOut").value.trim();
+      const rawVoucher = document.getElementById("inpVoucherSignOut").value.trim();
 
-      if (!voucherVal || !/^\d{6}$/.test(voucherVal)) {
-        alert("Please enter a valid 6-digit numerical Voucher Number.");
+      if (!rawVoucher || !/^\d{1,6}$/.test(rawVoucher)) {
+        alert("Please enter a valid Voucher Number.");
         return;
       }
 
@@ -258,19 +258,25 @@
         if (window.db && window.firestoreTools) {
           const { collection, query, where, getDocs, doc, updateDoc } = window.firestoreTools;
 
-          // Query Firestore for active shift matching BOTH IC/Passport AND Voucher Number
+          // Query active shifts for this worker using IC/Passport
           const q = query(
             collection(window.db, "shifts"),
-            where("doc_no", "==", docNo),
-            where("voucher_no", "==", voucherVal)
+            where("doc_no", "==", String(docNo))
           );
 
           const snapshot = await getDocs(q);
 
           let activeShiftDoc = null;
+
+          // Check documents client-side to handle both Number and String voucher storage
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            if (!data.sign_out_time || data.sign_out_time === "") {
+            const storedVoucher = String(data.voucher_no || "").trim();
+            
+            const isVoucherMatch = (storedVoucher === rawVoucher) || (Number(storedVoucher) === Number(rawVoucher));
+            const isOpenShift = !data.sign_out_time || data.sign_out_time === "";
+
+            if (isVoucherMatch && isOpenShift) {
               activeShiftDoc = { id: docSnap.id, ...data };
             }
           });
@@ -279,7 +285,7 @@
             spinner.style.display = "none";
             title.textContent = "Sign Out Failed";
             title.style.color = "#dc3545";
-            msg.textContent = `No active shift found for Voucher: ${voucherVal}. Please verify your voucher number.`;
+            msg.textContent = `No active shift found for Voucher: ${rawVoucher}. Please verify your voucher number.`;
             closeBtn.style.display = "block";
             closeBtn.textContent = "Try Again";
             closeBtn.onclick = () => { overlay.style.display = "none"; };
@@ -305,7 +311,7 @@
           spinner.style.display = "none";
           title.textContent = "Sign Out Successful";
           title.style.color = "#28a745";
-          msg.innerHTML = `Voucher <strong>${voucherVal}</strong> signed out at <strong>${signOutTimeFormatted}</strong>.<br>Hours Worked: <strong>${hoursWorked} hrs</strong>`;
+          msg.innerHTML = `Voucher <strong>${rawVoucher}</strong> signed out at <strong>${signOutTimeFormatted}</strong>.<br>Hours Worked: <strong>${hoursWorked} hrs</strong>`;
           closeBtn.style.display = "block";
           closeBtn.textContent = "Return to Home";
           closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
@@ -325,7 +331,7 @@
     window.addEventListener("DOMContentLoaded", () => {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
-      
+
       if (!docNo) {
         window.location.href = "index.html";
       } else {
