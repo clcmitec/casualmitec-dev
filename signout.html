@@ -234,7 +234,6 @@
 
     async function submitSignOut() {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
-      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
       const rawVoucher = document.getElementById("inpVoucherSignOut").value.trim();
 
       if (!rawVoucher || !/^\d{1,6}$/.test(rawVoucher)) {
@@ -256,7 +255,6 @@
         if (window.db && window.firestoreTools) {
           const { collection, getDocs, doc, updateDoc } = window.firestoreTools;
 
-          // Fetch shifts and match locally to avoid type mismatch issues on doc_no and voucher_no
           const snapshot = await getDocs(collection(window.db, "shifts"));
 
           let activeShiftDoc = null;
@@ -264,14 +262,12 @@
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
 
-            const storedDocNo = String(data.doc_no || "").trim();
-            const storedVoucher = String(data.voucher_no || "").trim();
+            const storedVoucher = String(data.voucher_no || data.voucher || "").trim();
 
-            const isDocMatch = !docNo || (storedDocNo === String(docNo).trim()) || (Number(storedDocNo) === Number(docNo));
             const isVoucherMatch = (storedVoucher === rawVoucher) || (Number(storedVoucher) === Number(rawVoucher));
-            const isOpenShift = !data.sign_out_time || data.sign_out_time === "";
+            const isOpenShift = !data.sign_out_time || String(data.sign_out_time).trim() === "";
 
-            if (isDocMatch && isVoucherMatch && isOpenShift) {
+            if (isVoucherMatch && isOpenShift) {
               activeShiftDoc = { id: docSnap.id, ...data };
             }
           });
@@ -294,7 +290,6 @@
 
           const hoursWorked = calculateHoursWorked(activeShiftDoc.sign_in_time, signOutTimeFormatted);
 
-          // Update Firestore record
           const shiftDocRef = doc(window.db, "shifts", activeShiftDoc.id);
           await updateDoc(shiftDocRef, {
             sign_out_time: signOutTimeFormatted,
