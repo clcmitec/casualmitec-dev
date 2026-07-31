@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MITEC — Staff Duty Sign In</title>
+  <title>MITEC — Staff Duty Attendance</title>
 
+  <!-- Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <!-- 🚀 FIREBASE FIRESTORE INTEGRATION -->
@@ -13,10 +14,10 @@
     import { 
       getFirestore, 
       collection, 
-      addDoc, 
       getDocs, 
-      query, 
-      where 
+      addDoc,
+      doc,
+      updateDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -27,8 +28,8 @@
     const db = getFirestore(app);
 
     window.db = db;
-    window.firestoreTools = { collection, addDoc, getDocs, query, where };
-    console.log("🔥 Firebase Firestore connected cleanly on Sign-In Page!");
+    window.firestoreTools = { collection, getDocs, addDoc, doc, updateDoc };
+    console.log("🔥 Firebase Firestore connected!");
   </script>
 
   <style>
@@ -55,7 +56,7 @@
     .container { max-width: 400px; margin: 0 auto; }
 
     .header { text-align: center; margin-bottom: 32px; }
-    .brand-img { height: 24px; width: auto; }
+    .brand-img { height: 28px; width: auto; }
 
     .profile-card {
       background: var(--mitec-blue);
@@ -64,6 +65,7 @@
       color: #fff;
       display: flex; align-items: center; gap: 16px;
       margin-bottom: 24px;
+      box-shadow: var(--shadow-standard);
     }
 
     .avatar { 
@@ -86,6 +88,7 @@
     .section-title { 
       font-size: 13px; font-weight: 700; color: var(--mitec-blue); 
       margin-bottom: 20px; display: block; border-bottom: 1px solid #eee; padding-bottom: 8px;
+      text-transform: uppercase; letter-spacing: 0.05em;
     }
 
     .field { margin-bottom: 16px; }
@@ -98,7 +101,7 @@
       pointer-events: none;
     }
 
-    .input-field, select {
+    .input-field {
       width: 100%; height: 52px; border-radius: 8px;
       border: 1px solid var(--border-color); background: #fff;
       padding: 0 12px 0 44px; font-size: 15px;
@@ -106,7 +109,7 @@
       appearance: none; color: var(--text-main);
     }
 
-    .input-field:focus, select:focus { border-color: var(--mitec-blue); }
+    .input-field:focus { border-color: var(--mitec-blue); }
 
     .btn-submit {
       width: 100%; height: 52px; border-radius: 8px;
@@ -118,54 +121,39 @@
     }
     .btn-submit:hover { background: var(--mitec-blue-dark); }
 
-    /* FROSTED GLASS OVERLAY & CARD STYLING */
+    /* OVERLAY MODAL */
     .overlay {
-      position: fixed; 
-      top: 0; left: 0; 
-      width: 100%; height: 100%;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(9, 34, 83, 0.75);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      display: none; 
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: center;
-      z-index: 1000; 
-      padding: 20px;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
     }
 
     .overlay-card {
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 28px 20px;
-      max-width: 340px;
-      width: 100%;
-      text-align: center;
+      background: #ffffff; border-radius: 20px; padding: 28px 20px;
+      max-width: 340px; width: 100%; text-align: center;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      display: flex; flex-direction: column; align-items: center;
     }
 
     .spinner { 
-      width: 40px; height: 40px; 
-      border: 3px solid #eee; 
-      border-top: 3px solid var(--mitec-blue); 
-      border-radius: 50%; 
-      animation: spin 0.8s linear infinite; 
-      margin-bottom: 20px; 
+      width: 40px; height: 40px; border: 3px solid #eee; 
+      border-top: 3px solid var(--mitec-blue); border-radius: 50%; 
+      animation: spin 0.8s linear infinite; margin-bottom: 20px; 
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-
   </style>
 </head>
 <body>
 
   <div class="container">
     <div class="header">
-      <img class="brand-img" src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC">
+      <img class="brand-img" src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC Logo">
     </div>
 
+    <!-- PROFILE INFORMATION CARD -->
     <div class="profile-card">
       <img id="workerAvatar" class="avatar" src="https://via.placeholder.com/100" alt="Profile">
       <div class="profile-info">
@@ -174,80 +162,20 @@
       </div>
     </div>
 
+    <!-- MAIN FORM -->
     <div class="form-card">
-      <span class="section-title">Record Duty Attendance</span>
+      <span class="section-title">Record Duty Shift</span>
 
-      <!-- 1. VOUCHER NUMBER -->
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-ticket input-icon"></i>
-          <input type="text" id="inpVoucher" class="input-field" placeholder="Voucher Number (6-Digits)" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
+          <input type="text" id="inpVoucher" class="input-field" placeholder="Enter Voucher Number (6-Digits)" maxlength="6" pattern="\d{1,6}" inputmode="numeric" required>
         </div>
       </div>
 
-      <!-- 2. DEPARTMENT -->
-      <div class="field">
-        <div class="input-wrapper">
-          <i class="ph ph-briefcase input-icon"></i>
-          <select id="dept" required>
-            <option value="" disabled selected hidden>Department</option>
-            <option value="AV">AV</option>
-            <option value="CAT">CAT</option>
-            <option value="EXH">EXH</option>
-            <option value="FIN">FIN</option>
-            <option value="GCC">GCC</option>
-            <option value="GS">GS</option>
-            <option value="HK">HK</option>
-            <option value="HR">HR</option>
-            <option value="KIT">KIT</option>
-            <option value="LINEN">LINEN</option>
-            <option value="OPERATION">OPERATION</option>
-            <option value="PUR">PUR</option>
-            <option value="QA">QA</option>
-            <option value="SC">SC</option>
-            <option value="SETUP">SETUP</option>
-            <option value="STWD">STWD</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- 3. SHIFT START TIME -->
-      <div class="field">
-        <div class="input-wrapper">
-          <i class="ph ph-clock input-icon"></i>
-          <select id="shift" required>
-            <option value="" disabled selected hidden>Scheduled Shift</option>
-            <option value="0700">07:00</option>
-            <option value="0800">08:00</option>
-            <option value="0900">09:00</option>
-            <option value="1000">10:00</option>
-            <option value="1100">11:00</option>
-            <option value="1200">12:00</option>
-            <option value="1300">13:00</option>
-            <option value="1400">14:00</option>
-            <option value="1500">15:00</option>
-            <option value="1600">16:00</option>
-            <option value="1700">17:00</option>
-            <option value="1800">18:00</option>
-            <option value="1900">19:00</option>
-            <option value="2000">20:00</option>
-            <option value="2100">21:00</option>
-            <option value="2200">22:00</option>
-            <option value="2300">23:00</option>
-            <option value="0000">00:00</option>
-            <option value="0100">01:00</option>
-            <option value="0200">02:00</option>
-            <option value="0300">03:00</option>
-            <option value="0400">04:00</option>
-            <option value="0500">05:00</option>
-            <option value="0600">06:00</option>
-          </select>
-        </div>
-      </div>
-
-      <button id="btnSubmit" class="btn-submit" onclick="submitAttendance()">
-        <i class="ph ph-sign-in"></i>
-        Confirm Sign In
+      <button id="btnAttendance" class="btn-submit" onclick="submitAttendance()">
+        <i class="ph ph-clock-user"></i>
+        Submit Attendance
       </button>
     </div>
   </div>
@@ -257,12 +185,13 @@
     <div class="overlay-card">
       <div id="spinner" class="spinner"></div>
       <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
-      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we log your attendance.</p>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait...</p>
       <button id="closeBtn" class="btn-submit" style="display: none; margin-top: 20px; width: 100%;" onclick="window.location.href='dashboard.html'">Return to Home</button>
     </div>
   </div>
 
   <script>
+    // Helper to render Google Drive photos directly
     function convertToDirectLink(url) {
       if (!url) return "";
       let stringUrl = String(url);
@@ -273,69 +202,63 @@
       return stringUrl;
     }
 
+    // Load Identity from Local Storage
     function loadIdentity() {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      
+
       const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
       nameEl.textContent = fullName;
-      
+
       const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
+    // Shift Hours Calculation
+    function calculateHoursWorked(signInStr, signOutStr) {
+      if (!signInStr || !signOutStr) return "0.0";
+
+      const parseTime = (tStr) => {
+        const parts = tStr.split(":");
+        if (parts.length < 2) return null;
+        let hours = parseInt(parts[0], 10);
+        let minutes = parseInt(parts[1], 10);
+        if (tStr.toLowerCase().includes("pm") && hours < 12) hours += 12;
+        if (tStr.toLowerCase().includes("am") && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+
+      const startMins = parseTime(signInStr);
+      const endMins = parseTime(signOutStr);
+
+      if (startMins === null || endMins === null) return "0.0";
+
+      let diff = endMins - startMins;
+      if (diff < 0) diff += 24 * 60; // Overnight shift calculation
+
+      return (diff / 60).toFixed(1);
+    }
+
+    // MAIN SUBMIT FUNCTION
     async function submitAttendance() {
-  const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
-  const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no || "";
-  
-  // Extract Name & Email robustly from local storage
-  const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
-  const email = record["EMAIL ADDRESS"] || record.email || record.email_address || "";
-  
-  const voucherNo = document.getElementById("inpVoucherSignIn").value.trim();
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      
+      // Extract IC/Passport, Name, and Email robustly
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no || "";
+      const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
+      const email = record["EMAIL ADDRESS"] || record.email || record.email_address || "";
 
-  if (!voucherNo || !/^\d{1,6}$/.test(voucherNo)) {
-    alert("Please enter a valid 6-digit Voucher Number.");
-    return;
-  }
+      // Voucher input check
+      const voucherInput = document.getElementById("inpVoucher");
+      const rawVoucher = voucherInput ? voucherInput.value.trim() : "";
 
-  try {
-    const { collection, addDoc } = window.firestoreTools;
-    const now = new Date();
-    const signInTimeFormatted = now.toLocaleTimeString('en-GB', { 
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
-    });
+      if (!rawVoucher || !/^\d{1,6}$/.test(rawVoucher)) {
+        alert("Please enter a valid 6-digit Voucher Number.");
+        return;
+      }
 
-    // Write to Firestore with complete user metadata
-    await addDoc(collection(window.db, "shifts"), {
-      doc_no: String(docNo).trim(),
-      voucher_no: String(voucherNo).trim(),
-      full_name: fullName,       // <-- Fix: captures name
-      nama: fullName,            // <-- Fallback field name
-      email: email,              // <-- Fix: captures email
-      sign_in_time: signInTimeFormatted,
-      sign_in_timestamp: now.toISOString(),
-      sign_out_time: "",
-      hours_worked: "0.0",
-      created_at: now
-    });
-
-    alert(`Sign In Successful! Assigned Voucher: ${voucherNo}`);
-    window.location.href = "dashboard.html";
-
-  } catch (err) {
-    console.error("Sign in failed:", err);
-    alert("Error signing in. Please check connection.");
-  }
-}
-
-      // Extract full user profile metadata to write directly to Firestore
-      const workerName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "";
-      const workerEmail = record.email || record["EMAIL ADDRESS"] || record.email_address || "";
-      const workerPhone = record.phone || record.no_phone || record["PHONE NUMBER"] || "";
-      const workerGender = record.gender || record["GENDER"] || "";
-
+      // UI Overlay elements
       const overlay = document.getElementById("statusOverlay");
       const title = document.getElementById("statusTitle");
       const msg = document.getElementById("statusMsg");
@@ -346,79 +269,102 @@
       spinner.style.display = "block";
       closeBtn.style.display = "none";
 
-      const now = new Date();
-      const timeFormatted = now.toLocaleTimeString('en-GB', { 
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
-      });
-      const todayStr = now.toISOString().split("T")[0];
-
       try {
         if (window.db && window.firestoreTools) {
-          const { collection, addDoc, query, where, getDocs } = window.firestoreTools;
+          const { collection, getDocs, addDoc, doc, updateDoc } = window.firestoreTools;
 
-          // Guard against duplicate sign-ins on the same day
-          const q = query(
-            collection(window.db, "shifts"),
-            where("doc_no", "==", docNo),
-            where("date", "==", todayStr)
-          );
-          const existingSnapshot = await getDocs(q);
+          // 1. Fetch shifts to check for open shift matching voucher or doc_no
+          const snapshot = await getDocs(collection(window.db, "shifts"));
+          let activeShiftDoc = null;
 
-          if (!existingSnapshot.empty) {
-            spinner.style.display = "none";
-            title.textContent = "Already Signed In";
-            title.style.color = "#dc3545";
-            msg.textContent = "You have already signed in for today's shift.";
-            closeBtn.style.display = "block";
-            closeBtn.textContent = "Return to Dashboard";
-            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
-            return;
-          }
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
 
-          // Write new shift record with Name, Email, Phone, and Gender
-          await addDoc(collection(window.db, "shifts"), {
-            doc_no: docNo,
-            voucher_no: voucher,
-            department: departmentVal,
-            scheduled_shift: shiftVal,
-            date: todayStr,
-            sign_in_time: timeFormatted,
-            sign_out_time: "",
-            hours_worked: "0.0",
-            // Captured Profile Data
-            nama: workerName,
-            email: workerEmail,
-            no_phone: workerPhone,
-            gender: workerGender,
-            created_at: new Date()
+            const storedVoucher = String(data.voucher_no || data.voucher || "").trim();
+            const storedDocNo = String(data.doc_no || "").trim();
+
+            const isVoucherMatch = (storedVoucher === rawVoucher) || (Number(storedVoucher) === Number(rawVoucher));
+            const isDocMatch = docNo && ((storedDocNo === String(docNo).trim()) || (Number(storedDocNo) === Number(docNo)));
+            const isOpenShift = !data.sign_out_time || String(data.sign_out_time).trim() === "";
+
+            // Active open shift check
+            if (isOpenShift && (isVoucherMatch || isDocMatch)) {
+              activeShiftDoc = { id: docSnap.id, ...data };
+            }
           });
 
-          spinner.style.display = "none";
-          title.textContent = "Sign In Successful";
-          title.style.color = "#28a745";
-          msg.innerHTML = `Signed in at <strong>${timeFormatted}</strong><br>Voucher: <strong>${voucher}</strong>`;
-          closeBtn.style.display = "block";
-          closeBtn.textContent = "Return to Home";
-          closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+          const now = new Date();
+          const timeFormatted = now.toLocaleTimeString('en-GB', { 
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
+          });
+
+          // -------------------------------------------------------------
+          // CASE 1: SIGN OUT (Active shift exists)
+          // -------------------------------------------------------------
+          if (activeShiftDoc) {
+            const hoursWorked = calculateHoursWorked(activeShiftDoc.sign_in_time, timeFormatted);
+
+            const shiftDocRef = doc(window.db, "shifts", activeShiftDoc.id);
+            await updateDoc(shiftDocRef, {
+              sign_out_time: timeFormatted,
+              hours_worked: hoursWorked,
+              sign_out_timestamp: now.toISOString(),
+              updated_at: new Date()
+            });
+
+            spinner.style.display = "none";
+            title.textContent = "Sign Out Successful";
+            title.style.color = "#28a745";
+            msg.innerHTML = `Voucher <strong>${rawVoucher}</strong> signed out at <strong>${timeFormatted}</strong>.<br>Hours Worked: <strong>${hoursWorked} hrs</strong>`;
+            closeBtn.style.display = "block";
+            closeBtn.textContent = "Return to Home";
+            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+          } 
+          // -------------------------------------------------------------
+          // CASE 2: SIGN IN (No active shift exists)
+          // -------------------------------------------------------------
+          else {
+            await addDoc(collection(window.db, "shifts"), {
+              doc_no: String(docNo).trim(),
+              voucher_no: String(rawVoucher).trim(),
+              full_name: fullName,
+              nama: fullName,
+              email: email,
+              sign_in_time: timeFormatted,
+              sign_in_timestamp: now.toISOString(),
+              sign_out_time: "",
+              hours_worked: "0.0",
+              created_at: now
+            });
+
+            spinner.style.display = "none";
+            title.textContent = "Sign In Successful";
+            title.style.color = "#28a745";
+            msg.innerHTML = `Voucher <strong>${rawVoucher}</strong> signed in at <strong>${timeFormatted}</strong>.<br>Welcome, <strong>${fullName}</strong>!`;
+            closeBtn.style.display = "block";
+            closeBtn.textContent = "Return to Home";
+            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+          }
         }
       } catch (err) {
-        console.error("Sign-in submission error:", err);
+        console.error("submitAttendance Error:", err);
         spinner.style.display = "none";
-        title.textContent = "Submission Error";
+        title.textContent = "Submission Failed";
         title.style.color = "#dc3545";
-        msg.textContent = "Could not record sign in. Please check connection and try again.";
+        msg.textContent = "Could not record attendance. Please check network and try again.";
         closeBtn.style.display = "block";
         closeBtn.textContent = "Try Again";
         closeBtn.onclick = () => { overlay.style.display = "none"; };
       }
     }
 
+    // Page initialization check
     window.addEventListener("DOMContentLoaded", () => {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
-      
+
       if (!docNo) {
-        window.location.href = "indexc.html";
+        window.location.href = "index.html";
       } else {
         loadIdentity();
       }
