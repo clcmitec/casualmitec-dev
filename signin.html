@@ -285,26 +285,50 @@
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
-    async function submitAttendance() {
-      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
-      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
-      
-      const voucher = document.getElementById("inpVoucher").value.trim();
-      const departmentVal = document.getElementById("dept").value;
-      const shiftVal = document.getElementById("shift").value;
+    async function submitSignIn() {
+  const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+  const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no || "";
+  
+  // Extract Name & Email robustly from local storage
+  const fullName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "Staff Member";
+  const email = record["EMAIL ADDRESS"] || record.email || record.email_address || "";
+  
+  const voucherNo = document.getElementById("inpVoucherSignIn").value.trim();
 
-      if (!voucher || !/^\d{6}$/.test(voucher)) {
-        alert("Please enter a valid 6-digit numerical Voucher Number.");
-        return;
-      }
-      if (!departmentVal) {
-        alert("Please select your Department.");
-        return;
-      }
-      if (!shiftVal) {
-        alert("Please select your Scheduled Shift.");
-        return;
-      }
+  if (!voucherNo || !/^\d{1,6}$/.test(voucherNo)) {
+    alert("Please enter a valid 6-digit Voucher Number.");
+    return;
+  }
+
+  try {
+    const { collection, addDoc } = window.firestoreTools;
+    const now = new Date();
+    const signInTimeFormatted = now.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
+    });
+
+    // Write to Firestore with complete user metadata
+    await addDoc(collection(window.db, "shifts"), {
+      doc_no: String(docNo).trim(),
+      voucher_no: String(voucherNo).trim(),
+      full_name: fullName,       // <-- Fix: captures name
+      nama: fullName,            // <-- Fallback field name
+      email: email,              // <-- Fix: captures email
+      sign_in_time: signInTimeFormatted,
+      sign_in_timestamp: now.toISOString(),
+      sign_out_time: "",
+      hours_worked: "0.0",
+      created_at: now
+    });
+
+    alert(`Sign In Successful! Assigned Voucher: ${voucherNo}`);
+    window.location.href = "dashboard.html";
+
+  } catch (err) {
+    console.error("Sign in failed:", err);
+    alert("Error signing in. Please check connection.");
+  }
+}
 
       // Extract full user profile metadata to write directly to Firestore
       const workerName = record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || record.nama || "";
