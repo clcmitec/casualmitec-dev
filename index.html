@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>MITEC — Casual Labour Portal</title>
+  <title>MITEC — Casual Labour Portal (Firebase Test)</title>
   
   <link class="icon" href="https://mitec.com.my/static/img/logos/logo-footer.png" type="image/png">
 
@@ -14,6 +14,30 @@
   
   <!-- REAL-TIME QR DECODING ENGINE INTEGRATION -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <!-- 🚀 FIREBASE FIRESTORE INTEGRATION (SANDBOX TEST) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      query, 
+      where 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "casualmitec-apps"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Make Firebase tools available globally for our page scripts
+    window.db = db;
+    window.firestoreTools = { collection, getDocs, query, where };
+    console.log("🔥 Firebase Firestore connected cleanly in Test Sandbox!");
+  </script>
 
   <style>
     :root {
@@ -87,7 +111,6 @@
       gap: 10px;
     }
 
-    /* Elongated Drawer Logo styled with a bright Silver Monochrome aesthetic */
     .drawer-logo {
       width: 110px;
       height: auto;
@@ -95,8 +118,6 @@
       filter: grayscale(100%) brightness(1.6) contrast(1.1);
       opacity: 0.95;
     }
-
-    .drawer-title { font-size: 11px; font-weight: 800; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.06em; text-transform: uppercase; }
 
     .drawer-close-btn {
       background: none; border: none; font-size: 22px; color: rgba(255, 255, 255, 0.6);
@@ -114,7 +135,6 @@
     .dropdown-item:active { background: rgba(255, 255, 255, 0.1); }
     .dropdown-item i { font-size: 20px; color: rgba(255, 255, 255, 0.6); }
 
-    /* Accordion Quick Links Submenu */
     .dropdown-submenu {
       max-height: 0; overflow: hidden;
       transition: max-height 0.3s ease;
@@ -146,7 +166,6 @@
       justify-content: center;
     }
 
-    /* Core Card Structure containing relative alignment hooks */
     .card {
       position: relative;
       background: var(--card-bg);
@@ -157,7 +176,6 @@
       width: 100%;
     }
 
-    /* Relocated Premium Mitec Blue Nav Button Inside the Card Area */
     .nav-icon-btn {
       position: absolute;
       top: 20px;
@@ -183,7 +201,6 @@
       background: var(--mitec-accent);
     }
 
-    /* Main Card Brand Header Area (Original Colors Maintained) */
     .brand { text-align: center; margin-bottom: 32px; padding-top: 10px; }
     
     .brand img { 
@@ -195,7 +212,6 @@
     
     .sub { font-size: 12px; color: var(--text-muted); margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 
-    /* Dual Mode Selector */
     .mode-selector {
       display: flex;
       background: var(--bg-base);
@@ -229,7 +245,6 @@
 
     .mode-btn i { font-size: 18px; }
 
-    /* Ergonomic Inputs */
     .input-group { position: relative; margin-bottom: 20px; }
     
     .input-icon { 
@@ -261,7 +276,6 @@
       top: -9px; left: 12px; font-size: 11px; color: var(--mitec-accent); background: #ffffff; padding: 0 6px; font-weight: 700;
     }
 
-    /* Buttons */
     .btn-primary {
       width: 100%; height: 56px; border: none; border-radius: var(--radius-md);
       background: linear-gradient(135deg, var(--mitec-blue) 0%, var(--mitec-blue-dark) 100%);
@@ -272,7 +286,6 @@
     
     .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
 
-    /* Dynamic Quick Scanner Panel */
     .quick-scan-panel {
       text-align: center;
       padding: 12px 0;
@@ -303,7 +316,6 @@
       margin: 0; font-size: 14px; font-weight: 600; color: var(--mitec-blue);
     }
 
-    /* Secondary Nav Links */
     .btn-link {
       display: inline-block; margin-top: 24px; font-size: 14px; font-weight: 700;
       color: var(--mitec-accent); text-decoration: none; padding: 8px 16px;
@@ -314,7 +326,6 @@
     .msg.error { color: var(--error); }
     .msg.success { color: var(--success); }
 
-    /* Fullscreen Scanner Module Overlay */
     .scanner-overlay {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -354,7 +365,6 @@
     .scanner-title { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
     .scanner-desc { font-size: 14px; color: rgba(255,255,255,0.6); margin: 0; padding: 0 20px; }
 
-    /* Compact Mobile Footer */
     .footer { width: 100%; text-align: center; margin-top: 36px; }
     .footer-brand { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 11px; font-weight: 800; color: var(--mitec-blue); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
     .footer-system { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
@@ -368,9 +378,7 @@
   <div id="navDropdown" class="nav-dropdown">
     <div class="drawer-header">
       <div class="drawer-brand-wrapper">
-        <!-- Elongated layout variant swapped here with clean CSS silvering filters -->
         <img src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC Silver Logo" class="drawer-logo">
-        
       </div>
       <button class="drawer-close-btn" onclick="closeNavDrawer()" aria-label="Close Drawer">
         <i class="ph-bold ph-x"></i>
@@ -382,7 +390,6 @@
     <div class="dropdown-item" onclick="openQRScanner()"><i class="ph-bold ph-qr-code"></i> QR Code Scanner</div>
     <a href="twuw.html" class="dropdown-item"><i class="ph-bold ph-map-pin-line"></i> How to Get to MITEC</a>
     
-    <!-- Quick Links setup to be open by default -->
     <div class="dropdown-item" onclick="toggleQuickLinks()">
       <i class="ph-bold ph-link-simple"></i> Quick Links 
       <i class="ph-bold ph-caret-down" id="quickLinksCaret" style="margin-left: auto; font-size: 14px; transform: rotate(180deg); transition: transform 0.3s;"></i>
@@ -398,7 +405,6 @@
     </div>
   </div>
 
-  <!-- Fullscreen QR Scanner Module Overlay -->
   <div id="scannerOverlay" class="scanner-overlay">
     <div class="scanner-header">
       <button class="scanner-close" onclick="closeQRScanner()" aria-label="Exit Scanner">
@@ -417,18 +423,15 @@
 
   <div class="shell">
     <div class="card">
-      <!-- Integrated Drawer Activation Button Inside the Card Structure -->
       <button class="nav-icon-btn" onclick="openNavDrawer()" aria-label="Open Navigation Drawer">
         <i class="ph-bold ph-list"></i>
       </button>
 
       <div class="brand">
-        <!-- Main application entry point keeps pristine brand colors -->
         <img src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC Logo">
-        <p class="sub">Casual Labour Portal</p>
+        <p class="sub">Casual Labour Portal (Test Environment)</p>
       </div>
 
-      <!-- Segmented Control Toggles -->
       <div class="mode-selector">
         <button id="tabIdMode" class="mode-btn active" onclick="switchLoginMode('id')">
           <i class="ph-bold ph-identification-card"></i> ID Entry
@@ -438,7 +441,6 @@
         </button>
       </div>
 
-      <!-- Mode A: Form Field Block -->
       <div id="idInputBlock">
         <div class="input-group">
           <i class="ph-fill ph-identification-card input-icon"></i>
@@ -451,7 +453,6 @@
         </button>
       </div>
 
-      <!-- Mode B: Quick Scan Trigger Panel Block -->
       <div id="qrScanBlock" class="quick-scan-panel" style="display: none;">
         <div class="scan-trigger-box" onclick="openQRScanner()">
           <i class="ph-bold ph-camera"></i>
@@ -468,8 +469,8 @@
 
     <footer class="footer">
       <div class="footer-brand">MALAYSIA INTERNATIONAL TRADE & EXHIBITION CENTRE</div>
-      <div class="footer-system">Casual Labour Management System</div>
-      <div class="version-tag">PROTOCOL V1.2.0</div>
+      <div class="footer-system">Casual Labour Management System (Firebase Sandbox)</div>
+      <div class="version-tag">PROTOCOL V1.2.0-TEST</div>
     </footer>
   </div>
 
@@ -621,6 +622,7 @@
       }
     }
 
+    // 🚀 HYBRID FIRESTORE + GOOGLE APPS SCRIPT LOGIN HANDLER
     async function handleLogin() {
       const docNo = docInput.value.trim();
       if (!docNo) {
@@ -632,13 +634,35 @@
       loginBtn.querySelector('span').textContent = "Establishing Protocol...";
       showStatus("");
 
+      // STEP 1: Query Firestore collection 'users'
+      try {
+        if (window.firestoreTools) {
+          const { collection, query, where, getDocs } = window.firestoreTools;
+          const q = query(collection(window.db, "users"), where("IC / PASSPORT NUMBER", "==", docNo));
+          const querySnapshot = await getDocs(q);
+
+          if (!querySnapshot.empty) {
+            console.log("🔥 Found user record via Firestore!");
+            const workerRecord = querySnapshot.docs[0].data();
+            showStatus("Identity Verified via Firestore. Entering...", false);
+            localStorage.setItem("mitecWorkerRecord", JSON.stringify(workerRecord));
+            localStorage.setItem("mcl_doc_no", docNo);
+            setTimeout(() => { window.location.href = "dashboard.html"; }, 800);
+            return;
+          }
+        }
+      } catch (fsErr) {
+        console.warn("Firestore lookup failed or empty, failing over to Sheets script:", fsErr);
+      }
+
+      // STEP 2: Fallback to existing Google Apps Script API
       try {
         const url = `${WEB_APP_URL}?action=check_existing&doc_no=${encodeURIComponent(docNo)}`;
         const res = await fetch(url);
         const data = await res.json();
 
         if (data.ok && data.exists) {
-          showStatus("Identity Verified. Entering...", false);
+          showStatus("Identity Verified via Legacy Script. Entering...", false);
           localStorage.setItem("mitecWorkerRecord", JSON.stringify(data.record));
           localStorage.setItem("mcl_doc_no", docNo);
           setTimeout(() => { window.location.href = "dashboard.html"; }, 800);
