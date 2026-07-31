@@ -116,13 +116,43 @@
     }
     .btn-submit:hover { background: var(--mitec-blue-dark); }
 
+    /* FROSTED GLASS OVERLAY & CARD STYLING */
     .overlay {
-      position: fixed; top:0; left:0; width:100%; height:100%;
-      background: rgba(255,255,255,0.98);
-      display: none; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 100; text-align: center; padding: 20px;
+      position: fixed; 
+      top: 0; left: 0; 
+      width: 100%; height: 100%;
+      background: rgba(9, 34, 83, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center;
+      z-index: 1000; 
+      padding: 20px;
     }
-    .spinner { width: 40px; height: 40px; border: 3px solid #eee; border-top: 3px solid var(--mitec-blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+
+    .overlay-card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 28px 20px;
+      max-width: 340px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .spinner { 
+      width: 40px; height: 40px; 
+      border: 3px solid #eee; 
+      border-top: 3px solid var(--mitec-blue); 
+      border-radius: 50%; 
+      animation: spin 0.8s linear infinite; 
+      margin-bottom: 20px; 
+    }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
   </style>
@@ -148,7 +178,7 @@
       <div class="field">
         <div class="input-wrapper">
           <i class="ph ph-hash input-icon"></i>
-          <input type="text" id="voucherNo" class="input-field" placeholder="6-Digit Voucher No." maxlength="6" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+          <input type="text" id="voucherNo" class="input-field" placeholder="6-Digit Voucher No." maxlength="6" inputmode="text" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
         </div>
       </div>
 
@@ -217,16 +247,17 @@
     </div>
   </div>
 
+  <!-- STATUS OVERLAY MODAL -->
   <div id="statusOverlay" class="overlay">
-    <div id="spinner" class="spinner"></div>
-    <h2 id="statusTitle" style="margin:0; font-size:20px; font-weight:600;">Processing...</h2>
-    <p id="statusMsg" style="color:var(--text-muted); font-size:14px; margin-top:8px;">Please wait while we record your entry.</p>
-    <button id="closeBtn" class="btn-submit" style="display:none; margin-top:24px; max-width:200px;" onclick="window.location.href='dashboard.html'">Return to Home</button>
+    <div class="overlay-card">
+      <div id="spinner" class="spinner"></div>
+      <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we record your entry.</p>
+      <button id="closeBtn" class="btn-submit" style="display: none; margin-top: 20px; width: 100%;" onclick="window.location.href='dashboard.html'">Return to Home</button>
+    </div>
   </div>
 
   <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyq0EucoCN7Y1O1k2mik8Ne7bZbPDfPonyJ9ac73UkzpBMCxsBBhVJ__0ZAC-Fr6OT5/exec";
-
     function convertToDirectLink(url) {
       if (!url) return "";
       let stringUrl = String(url);
@@ -241,9 +272,9 @@
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
       const nameEl = document.getElementById("workerName");
       const avatarEl = document.getElementById("workerAvatar");
-      nameEl.textContent = (record.name_mykad || record["FULL NAME (AS PER IC / PASSPORT)"] || record.full_name || "Staff Member");
+      nameEl.textContent = (record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || "Staff Member");
       
-      const photo = record.photo_link || record["PASSPORT-SIZE PHOTO LINK"];
+      const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
@@ -251,7 +282,9 @@
       const voucher = document.getElementById("voucherNo").value.trim();
       const dept = document.getElementById("dept").value;
       const shift = document.getElementById("shift").value;
-      const docNo = localStorage.getItem("mcl_doc_no") || JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}")["IC / PASSPORT NUMBER"];
+      
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
 
       if (!voucher || !dept || !shift) {
         alert("Action Required: Please complete all fields.");
@@ -274,36 +307,37 @@
       closeBtn.style.display = "none";
 
       const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
+      const todayStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
       const timeFormatted = now.toLocaleTimeString('en-GB', { 
         hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
       });
 
-      // --- STEP 1: Attempt Firestore First ---
+      // --- FIRESTORE DIRECT INTEGRATION ---
       try {
-        if (window.firestoreTools && window.db) {
+        if (window.db && window.firestoreTools) {
           const { collection, query, where, getDocs, addDoc } = window.firestoreTools;
 
-          // Check if already signed in today via Firestore
+          // 1. Check Firestore for duplicate shift today
           const q = query(
             collection(window.db, "shifts"), 
             where("doc_no", "==", docNo),
             where("date", "==", todayStr)
           );
-          const existingDocs = await getDocs(q);
+          
+          const querySnapshot = await getDocs(q);
 
-          if (!existingDocs.empty) {
+          if (!querySnapshot.empty) {
             spinner.style.display = "none";
             title.textContent = "Already Signed In";
             title.style.color = "#dc3545";
-            msg.textContent = "You have already signed in today.";
-            closeBtn.style.display = "flex";
+            msg.textContent = "You have already recorded a shift for today.";
+            closeBtn.style.display = "block";
             closeBtn.textContent = "Go to Dashboard";
             closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
             return;
           }
 
-          // Create record in Firestore
+          // 2. Add new shift to Firestore
           await addDoc(collection(window.db, "shifts"), {
             doc_no: docNo,
             voucher_no: voucher,
@@ -319,53 +353,19 @@
           spinner.style.display = "none";
           title.textContent = "Entry Confirmed";
           title.style.color = "#28a745";
-          msg.innerHTML = `You have successfully signed in at <strong>${timeFormatted}</strong>`;
-          closeBtn.style.display = "flex";
+          msg.innerHTML = `Signed in successfully at <strong>${timeFormatted}</strong>`;
+          closeBtn.style.display = "block";
           closeBtn.textContent = "Return to Home";
           closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
           return;
         }
       } catch (fsErr) {
-        console.warn("Firestore sign-in submission failed, falling back to Apps Script:", fsErr);
-      }
-
-      // --- STEP 2: Fallback to Google Apps Script ---
-      try {
-        const url = `${WEB_APP_URL}?action=signIn&doc_no=${encodeURIComponent(docNo)}&voucher=${encodeURIComponent(voucher)}&dept=${encodeURIComponent(dept)}&shift=${encodeURIComponent(shift)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        spinner.style.display = "none";
-
-        if (data.ok) {
-          title.textContent = "Entry Confirmed";
-          title.style.color = "#28a745";
-          msg.innerHTML = `You have successfully signed in at <strong>${timeFormatted}</strong>`;
-          closeBtn.style.display = "flex";
-          closeBtn.textContent = "Return to Home";
-          closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
-        } else {
-          if (data.message && data.message.includes("already signed in")) {
-            title.textContent = "Already Signed In";
-            title.style.color = "#dc3545";
-            msg.textContent = data.message;
-            closeBtn.textContent = "Go to Dashboard";
-            closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
-          } else {
-            title.textContent = "Submission Failed";
-            title.style.color = "#dc3545";
-            msg.textContent = data.message || "Registration Failed";
-            closeBtn.textContent = "Try Again";
-            closeBtn.onclick = () => { overlay.style.display = "none"; };
-          }
-          closeBtn.style.display = "flex";
-        }
-      } catch (err) {
+        console.error("Firestore Error:", fsErr);
         spinner.style.display = "none";
         title.textContent = "System Error";
         title.style.color = "#dc3545";
-        msg.textContent = "Unable to process request. Please check your internet connection and try again.";
-        closeBtn.style.display = "flex";
+        msg.textContent = "Could not record shift. Please check connection and try again.";
+        closeBtn.style.display = "block";
         closeBtn.textContent = "Try Again";
         closeBtn.onclick = () => { overlay.style.display = "none"; };
       }
@@ -373,7 +373,7 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
-      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"];
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
       
       if (!docNo) {
         window.location.href = "index.html";
