@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MITEC — Staff Duty Departure</title>
+
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- 🚀 FIREBASE FIRESTORE INTEGRATION -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      doc,
+      updateDoc,
+      query, 
+      where 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "casualmitec-apps"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firestoreTools = { collection, getDocs, doc, updateDoc, query, where };
+    console.log("🔥 Firebase Firestore connected cleanly on Sign-Out Page!");
+  </script>
+
+  <style>
+    :root {
+      --mitec-blue: #092253;
+      --mitec-blue-dark: #071a3d;
+      --bg-base: #f8f9fa; 
+      --card-bg: #ffffff;
+      --text-main: #2c2c2e;
+      --text-muted: #6e6e73;
+      --border-color: #d1d1d6;
+      --shadow-standard: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+    body { 
+      margin: 0; padding: 40px 20px; 
+      background-color: var(--bg-base);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
+    }
+
+    .container { max-width: 400px; margin: 0 auto; }
+
+    .header { text-align: center; margin-bottom: 32px; }
+    .brand-img { height: 24px; width: auto; }
+
+    .profile-card {
+      background: var(--mitec-blue);
+      border-radius: 16px;
+      padding: 20px;
+      color: #fff;
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .avatar { 
+      width: 56px; height: 56px; border-radius: 50%; 
+      border: 2px solid rgba(255,255,255,0.2); object-fit: cover; 
+      background: rgba(255,255,255,0.1); 
+    }
+
+    .profile-info { flex: 1; }
+    .profile-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; margin-bottom: 4px; display: block; }
+    .profile-name { font-size: 16px; font-weight: 600; margin: 0; }
+
+    .form-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: var(--shadow-standard);
+    }
+
+    .section-title { 
+      font-size: 13px; font-weight: 700; color: var(--mitec-blue); 
+      margin-bottom: 20px; display: block; border-bottom: 1px solid #eee; padding-bottom: 8px;
+    }
+
+    .shift-summary {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .summary-row:last-child { margin-bottom: 0; }
+
+    .summary-label { color: var(--text-muted); font-weight: 500; }
+    .summary-value { color: var(--text-main); font-weight: 700; }
+
+    .btn-submit {
+      width: 100%; height: 52px; border-radius: 8px;
+      background: var(--mitec-blue); color: #fff;
+      font-size: 15px; font-weight: 600; border: none;
+      cursor: pointer; transition: background 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 8px;
+    }
+    .btn-submit:hover { background: var(--mitec-blue-dark); }
+    .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+    /* FROSTED GLASS OVERLAY & CARD STYLING */
+    .overlay {
+      position: fixed; 
+      top: 0; left: 0; 
+      width: 100%; height: 100%;
+      background: rgba(9, 34, 83, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center;
+      z-index: 1000; 
+      padding: 20px;
+    }
+
+    .overlay-card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 28px 20px;
+      max-width: 340px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .spinner { 
+      width: 40px; height: 40px; 
+      border: 3px solid #eee; 
+      border-top: 3px solid var(--mitec-blue); 
+      border-radius: 50%; 
+      animation: spin 0.8s linear infinite; 
+      margin-bottom: 20px; 
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <img class="brand-img" src="https://mitec.com.my/static/img/logos/mitec-new-logo.png" alt="MITEC">
+    </div>
+
+    <div class="profile-card">
+      <img id="workerAvatar" class="avatar" src="https://via.placeholder.com/100" alt="Profile">
+      <div class="profile-info">
+        <span class="profile-label">Current User</span>
+        <h2 class="profile-name" id="workerName">Loading Profile...</h2>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <span class="section-title">End Duty Shift</span>
+
+      <!-- ACTIVE SHIFT SUMMARY -->
+      <div class="shift-summary">
+        <div class="summary-row">
+          <span class="summary-label">Sign In Time:</span>
+          <span class="summary-value" id="valSignIn">Loading...</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Voucher No:</span>
+          <span class="summary-value" id="valVoucher">--</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Department:</span>
+          <span class="summary-value" id="valDept">--</span>
+        </div>
+      </div>
+
+      <button id="btnConfirmOut" class="btn-submit" onclick="submitSignOut()" disabled>
+        <i class="ph ph-sign-out"></i>
+        Confirm Sign Out
+      </button>
+    </div>
+  </div>
+
+  <!-- STATUS OVERLAY MODAL -->
+  <div id="statusOverlay" class="overlay">
+    <div class="overlay-card">
+      <div id="spinner" class="spinner"></div>
+      <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
+      <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait while we log your sign out.</p>
+      <button id="closeBtn" class="btn-submit" style="display: none; margin-top: 20px; width: 100%;" onclick="window.location.href='dashboard.html'">Return to Home</button>
+    </div>
+  </div>
+
+  <script>
+    let activeShiftDocId = null;
+    let signInTimeStr = null;
+
+    function convertToDirectLink(url) {
+      if (!url) return "";
+      let stringUrl = String(url);
+      if (stringUrl.includes("drive.google.com")) {
+        const match = stringUrl.match(/\/file\/d\/([^/?]+)/) || stringUrl.match(/id=([^&]+)/);
+        if (match && match[1]) return `https://drive.google.com/thumbnail?id=${match[1]}`;
+      }
+      return stringUrl;
+    }
+
+    function loadIdentity() {
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const nameEl = document.getElementById("workerName");
+      const avatarEl = document.getElementById("workerAvatar");
+      nameEl.textContent = (record["FULL NAME (AS PER IC / PASSPORT)"] || record.name_mykad || record.full_name || "Staff Member");
+      
+      const photo = record["PASSPORT-SIZE PHOTO LINK"] || record.photo_link;
+      if (photo) avatarEl.src = convertToDirectLink(photo);
+    }
+
+    function calculateHoursWorked(startTimeStr, endTimeStr) {
+      try {
+        const [h1, m1] = startTimeStr.split(':').map(Number);
+        const [h2, m2] = endTimeStr.split(':').map(Number);
+        
+        let startMinutes = h1 * 60 + m1;
+        let endMinutes = h2 * 60 + m2;
+        
+        // Handle overnight shifts crossing midnight
+        if (endMinutes < startMinutes) {
+          endMinutes += 24 * 60;
+        }
+
+        const diffMinutes = endMinutes - startMinutes;
+        return (diffMinutes / 60).toFixed(1);
+      } catch (e) {
+        return "0.0";
+      }
+    }
+
+    async function loadTodayShift() {
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      try {
+        if (window.db && window.firestoreTools) {
+          const { collection, query, where, getDocs } = window.firestoreTools;
+
+          const q = query(
+            collection(window.db, "shifts"),
+            where("doc_no", "==", docNo),
+            where("date", "==", todayStr)
+          );
+
+          const querySnapshot = await getDocs(q);
+
+          if (querySnapshot.empty) {
+            document.getElementById("valSignIn").textContent = "No active shift";
+            document.getElementById("valSignIn").style.color = "#dc3545";
+            return;
+          }
+
+          const activeDoc = querySnapshot.docs[0];
+          const shiftData = activeDoc.data();
+
+          if (shiftData.sign_out_time && shiftData.sign_out_time !== "") {
+            document.getElementById("valSignIn").textContent = shiftData.sign_in_time || "--:--";
+            document.getElementById("valVoucher").textContent = shiftData.voucher_no || "--";
+            document.getElementById("valDept").textContent = shiftData.department || "--";
+            
+            const btn = document.getElementById("btnConfirmOut");
+            btn.disabled = true;
+            btn.textContent = "Already Signed Out Today";
+            return;
+          }
+
+          activeShiftDocId = activeDoc.id;
+          signInTimeStr = shiftData.sign_in_time;
+
+          document.getElementById("valSignIn").textContent = shiftData.sign_in_time || "--:--";
+          document.getElementById("valVoucher").textContent = shiftData.voucher_no || "--";
+          document.getElementById("valDept").textContent = shiftData.department || "--";
+          document.getElementById("btnConfirmOut").disabled = false;
+        }
+      } catch (err) {
+        console.error("Error loading today shift:", err);
+        document.getElementById("valSignIn").textContent = "Failed to load shift";
+      }
+    }
+
+    async function submitSignOut() {
+      if (!activeShiftDocId || !signInTimeStr) {
+        alert("No active sign-in record found to sign out.");
+        return;
+      }
+
+      const overlay = document.getElementById("statusOverlay");
+      const title = document.getElementById("statusTitle");
+      const msg = document.getElementById("statusMsg");
+      const spinner = document.getElementById("spinner");
+      const closeBtn = document.getElementById("closeBtn");
+
+      overlay.style.display = "flex";
+      spinner.style.display = "block";
+      closeBtn.style.display = "none";
+
+      const now = new Date();
+      const signOutTimeStr = now.toLocaleTimeString('en-GB', { 
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' 
+      });
+
+      const totalHours = calculateHoursWorked(signInTimeStr, signOutTimeStr);
+
+      try {
+        if (window.db && window.firestoreTools) {
+          const { doc, updateDoc } = window.firestoreTools;
+
+          const shiftDocRef = doc(window.db, "shifts", activeShiftDocId);
+          await updateDoc(shiftDocRef, {
+            sign_out_time: signOutTimeStr,
+            hours_worked: totalHours,
+            updated_at: new Date()
+          });
+
+          spinner.style.display = "none";
+          title.textContent = "Sign Out Confirmed";
+          title.style.color = "#28a745";
+          msg.innerHTML = `Signed out at <strong>${signOutTimeStr}</strong><br>Total Hours Logged: <strong>${totalHours} hrs</strong>`;
+          closeBtn.style.display = "block";
+          closeBtn.textContent = "Return to Home";
+          closeBtn.onclick = () => { window.location.href = 'dashboard.html'; };
+        }
+      } catch (err) {
+        console.error("Sign-out error:", err);
+        spinner.style.display = "none";
+        title.textContent = "System Error";
+        title.style.color = "#dc3545";
+        msg.textContent = "Could not record sign out. Please check connection and try again.";
+        closeBtn.style.display = "block";
+        closeBtn.textContent = "Try Again";
+        closeBtn.onclick = () => { overlay.style.display = "none"; };
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
+      const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no;
+      
+      if (!docNo) {
+        window.location.href = "index.html";
+      } else {
+        loadIdentity();
+        // Delay shift check briefly to ensure Firebase SDK initializes
+        setTimeout(loadTodayShift, 500);
+      }
+    });
+  </script>
+</body>
+</html>
