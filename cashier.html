@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MITEC — Cashier Attendance & Payment Spreadsheet</title>
+  <title>MITEC — Cashier Attendance & Payment Ledger</title>
 
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -16,6 +16,7 @@
       getDocs, 
       doc,
       updateDoc,
+      writeBatch,
       query, 
       where,
       orderBy,
@@ -30,28 +31,30 @@
     const db = getFirestore(app);
 
     window.db = db;
-    window.firestoreTools = { collection, getDocs, doc, updateDoc, query, where, orderBy, limit };
+    window.firestoreTools = { collection, getDocs, doc, updateDoc, writeBatch, query, where, orderBy, limit };
     console.log("🔥 Firebase Firestore connected on Cashier Grid View!");
   </script>
 
   <style>
     :root {
-      --mitec-blue: #092253;
-      --mitec-blue-dark: #071a3d;
-      --bg-base: #f8f9fa; 
+      /* Metallic Blue & Silver Palette */
+      --metallic-blue-dark: #0b192c;
+      --metallic-blue-mid: #1e3e62;
+      --metallic-cyan: #00d2ff;
+      --silver-bg: #f1f5f9; 
       --card-bg: #ffffff;
-      --text-main: #2c2c2e;
-      --text-muted: #6e6e73;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
       --border-color: #cbd5e1;
-      --success-green: #28a745;
-      --shadow-standard: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --success-green: #10b981;
+      --shadow-standard: 0 4px 16px rgba(11, 25, 44, 0.08);
     }
 
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
     body { 
       margin: 0; padding: 20px; 
-      background-color: var(--bg-base);
+      background-color: var(--silver-bg);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text-main);
     }
@@ -66,85 +69,118 @@
     }
 
     .brand-section { display: flex; align-items: center; gap: 12px; }
-    .brand-img { height: 26px; width: auto; }
-    .page-title { font-size: 18px; font-weight: 700; color: var(--mitec-blue); margin: 0; }
+    .brand-img { height: 28px; width: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
+    .page-title { 
+      font-size: 20px; font-weight: 800; 
+      background: linear-gradient(135deg, var(--metallic-blue-dark), var(--metallic-blue-mid));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0; 
+    }
 
     /* CONTROLS BAR */
     .controls-card {
       background: var(--card-bg);
-      border-radius: 10px;
-      padding: 12px 16px;
+      border-radius: 12px;
+      padding: 14px 18px;
       box-shadow: var(--shadow-standard);
       margin-bottom: 16px;
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
       align-items: center;
+      border: 1px solid var(--border-color);
     }
 
     .search-wrapper { position: relative; flex: 1; min-width: 240px; }
-    .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+    .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; }
 
     .input-field-control {
-      width: 100%; height: 38px; border-radius: 6px;
-      border: 1px solid var(--border-color); background: #fff;
+      width: 100%; height: 40px; border-radius: 8px;
+      border: 1px solid var(--border-color); background: #f8fafc;
       padding: 0 12px 0 38px; font-size: 13px; outline: none;
+      transition: all 0.2s;
     }
-    .input-field-control:focus { border-color: var(--mitec-blue); }
+    .input-field-control:focus { border-color: var(--metallic-cyan); background: #fff; box-shadow: 0 0 0 3px rgba(0,210,255,0.15); }
 
     .filter-select {
-      height: 38px; border-radius: 6px;
-      border: 1px solid var(--border-color); background: #fff;
-      padding: 0 10px; font-size: 13px; outline: none;
+      height: 40px; border-radius: 8px;
+      border: 1px solid var(--border-color); background: #f8fafc;
+      padding: 0 12px; font-size: 13px; outline: none; font-weight: 500;
     }
 
-    .btn-refresh {
-      height: 38px; padding: 0 14px; border-radius: 6px;
-      background: var(--mitec-blue); color: #fff;
-      font-size: 13px; font-weight: 600; border: none;
-      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    .btn-action {
+      height: 40px; padding: 0 16px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--metallic-blue-mid), var(--metallic-blue-dark));
+      color: #fff; font-size: 13px; font-weight: 600; border: none;
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 2px 8px rgba(11,25,44,0.2); transition: all 0.2s;
+    }
+    .btn-action:active { transform: scale(0.98); }
+
+    .btn-save-global {
+      background: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-save-global.active {
+      background: linear-gradient(135deg, #10b981, #059669) !important;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
     }
 
     /* SPREADSHEET TABLE LAYOUT */
     .table-container {
       background: var(--card-bg);
-      border-radius: 10px;
+      border-radius: 12px;
       box-shadow: var(--shadow-standard);
       overflow: auto;
-      max-height: 78vh;
+      max-height: 76vh;
       border: 1px solid var(--border-color);
     }
 
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       text-align: left;
       font-size: 12px;
     }
 
     th {
-      background: #e2e8f0;
-      color: var(--mitec-blue);
+      background: linear-gradient(180deg, #224188, #1e3e62);
+      color: #f8fafc;
       font-weight: 700;
-      padding: 10px 8px;
-      border: 1px solid var(--border-color);
+      padding: 12px 10px;
+      border-right: 1px solid #334155;
+      border-bottom: 2px solid #0f172a;
       white-space: nowrap;
       position: sticky;
       top: 0;
       z-index: 10;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 11px;
     }
 
+    /* SPECIFIC COLUMN HEADER MIN-WIDTHS */
+    th.th-name { min-width: 240px; }
+    th.th-time { min-width: 85px; text-align: center; }
+
     td {
-      padding: 4px;
-      border: 1px solid var(--border-color);
+      padding: 6px 10px;
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
       vertical-align: middle;
       white-space: nowrap;
       background: #fff;
     }
 
-    tr:hover td { background: #f1f5f9; }
+    tr:hover td { background: #f8fafc; }
+    .row-dirty td { background: #fffde7 !important; }
 
-    /* EDITABLE CELL INPUTS (GOOGLE SHEET STYLE) */
+    /* EDITABLE CELL INPUTS */
     .cell-input {
       width: 100%;
       height: 32px;
@@ -154,39 +190,121 @@
       font-size: 12px;
       font-family: inherit;
       color: var(--text-main);
-      border-radius: 4px;
+      border-radius: 6px;
       outline: none;
+      transition: all 0.15s ease;
+    }
+
+    .cell-input:hover {
+      border-color: #cbd5e1;
+      background: #f8fafc;
     }
 
     .cell-input:focus {
       background: #ffffff;
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      border-color: var(--metallic-cyan);
+      box-shadow: 0 0 0 2px rgba(0,210,255,0.25);
     }
 
-    .cell-readonly {
-      padding: 6px;
-      color: #475569;
-      font-weight: 500;
+    /* CUSTOM DATE & SELECT DROPDOWN WRAPPERS WITH PH CARET */
+    .cell-date-container, .cell-select-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
     }
 
-    .row-dirty td { background: #fefce8 !important; }
-
-    .btn-save-row {
-      background: #94a3b8; color: #fff;
-      border: none; padding: 6px 10px; border-radius: 4px;
-      font-weight: 600; font-size: 11px; cursor: pointer;
-      display: flex; align-items: center; gap: 4px;
-    }
-    .btn-save-active {
-      background: var(--success-green) !important;
+    .cell-date-text {
+      width: 100%;
+      font-weight: 600;
+      color: #1e293b;
+      text-align: center;
       cursor: pointer;
+      padding-right: 18px;
+    }
+
+    .select-caret {
+      position: absolute;
+      right: 6px;
+      pointer-events: none;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .hidden-date-picker {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* RESIZED CELL STYLES */
+    .col-name-cell { min-width: 240px; }
+    .cell-name { 
+      font-weight: 700; 
+      color: #0b192c; 
+      text-transform: uppercase; 
+      width: 100%;
+      text-overflow: ellipsis;
+    }
+
+    .col-time-cell { min-width: 85px; width: 85px; }
+    .cell-time-input { text-align: center; font-weight: 600; letter-spacing: 0.5px; }
+
+    /* Currency Wrapper */
+    .currency-wrapper {
+      display: flex;
+      align-items: center;
+      background: rgba(16, 185, 129, 0.05);
+      border-radius: 6px;
+      padding-left: 6px;
+    }
+
+    .currency-prefix {
+      font-weight: 800;
+      font-size: 11px;
+      color: #059669;
+      font-family: 'SF Mono', Consolas, monospace;
+    }
+
+    /* Number / Currency Styling */
+    .cell-number { text-align: right; font-family: 'SF Mono', Consolas, monospace; }
+    .cell-wages { 
+      text-align: right; 
+      font-family: 'SF Mono', Consolas, monospace; 
+      font-weight: 800; 
+      color: #059669;
+    }
+
+    /* Select Dropdowns */
+    .select-dropdown {
+      font-weight: 600;
+      font-size: 11px;
+      border-radius: 6px;
+      padding: 2px 22px 2px 6px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }
+    .pay-cash { color: #059669; background: #d1fae5; }
+    .pay-online { color: #4f46e5; background: #e0e7ff; }
+
+    /* Department Tag */
+    .dept-tag {
+      font-weight: 600;
+      color: #1e3e62;
+      background: #f0fdf4;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     /* FROSTED GLASS OVERLAY */
     .overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(9, 34, 83, 0.75);
+      background: rgba(11, 25, 44, 0.8);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -194,15 +312,15 @@
     }
 
     .overlay-card {
-      background: #ffffff; border-radius: 20px; padding: 28px 20px;
-      max-width: 340px; width: 100%; text-align: center;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      background: #ffffff; border-radius: 16px; padding: 32px 24px;
+      max-width: 360px; width: 100%; text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
       display: flex; flex-direction: column; align-items: center;
     }
 
     .spinner { 
-      width: 40px; height: 40px; border: 3px solid #eee; 
-      border-top: 3px solid var(--mitec-blue); border-radius: 50%; 
+      width: 44px; height: 44px; border: 4px solid #e2e8f0; 
+      border-top: 4px solid var(--metallic-cyan); border-radius: 50%; 
       animation: spin 0.8s linear infinite; margin-bottom: 20px; 
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -230,8 +348,12 @@
       <option value="PAID">Paid Only</option>
     </select>
 
-    <button class="btn-refresh" onclick="loadAttendanceTable()">
+    <button class="btn-action" onclick="loadAttendanceTable()">
       <i class="ph ph-arrows-clockwise"></i> Refresh Grid
+    </button>
+
+    <button id="btnGlobalSave" class="btn-action btn-save-global" onclick="saveAllChanges()" disabled>
+      <i class="ph ph-floppy-disk-bold"></i> Save Changes
     </button>
   </div>
 
@@ -240,33 +362,29 @@
     <table>
       <thead>
         <tr>
-          <th>SAVE</th>
           <th>WORKING DATE</th>
-          <th>Timestamp</th>
+          <th>TIMESTAMP</th>
           <th>SHIFT</th>
-          <th>Email address</th>
           <th>DOC_NO</th>
           <th>VOUCHER</th>
-          <th>NAMA (MENGIKUT IC)</th>
+          <th class="th-name">NAMA (MENGIKUT IC)</th>
           <th>DEPARTMENT</th>
           <th>SIGN OUT</th>
-          <th>IN</th>
-          <th>OUT</th>
+          <th class="th-time">IN</th>
+          <th class="th-time">OUT</th>
           <th>HOURS</th>
           <th>RATE</th>
-          <th>WAGES</th>
+          <th>WAGES (RM)</th>
           <th>PROCESS DATE</th>
           <th>PAYMENT DATE</th>
           <th>REMARKS</th>
           <th>NOTES</th>
-          <th>NO PHONE</th>
-          <th>GENDER</th>
           <th>PAYMENT MODE</th>
         </tr>
       </thead>
       <tbody id="attendanceTbody">
         <tr>
-          <td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">
+          <td colspan="18" style="text-align:center; padding: 32px; color: var(--text-muted);">
             Loading attendance records...
           </td>
         </tr>
@@ -280,62 +398,175 @@
       <div id="spinner" class="spinner"></div>
       <h2 id="statusTitle" style="margin: 0; font-size: 20px; font-weight: 700;">Processing...</h2>
       <p id="statusMsg" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Please wait...</p>
-      <button id="closeBtn" class="btn-refresh" style="display: none; margin-top: 20px; width: 100%;" onclick="closeOverlay()">Close</button>
+      <button id="closeBtn" class="btn-action" style="display: none; margin-top: 20px; width: 100%; justify-content: center;" onclick="closeOverlay()">Close</button>
     </div>
   </div>
 
   <script>
     let allShifts = [];
-    const userProfileCache = {}; // Cache profiles by doc_no to minimize queries
+    const dirtyRowIds = new Set();
+    const userProfileCache = {}; 
+
+    const noteOptions = [
+      "Adjustment",
+      "Agent",
+      "Alcohol Server",
+      "Incomplete Attendance",
+      "Intern OT",
+      "Job Cancelled",
+      "Late Sign In/Out",
+      "Leader Incentive",
+      "Lost Voucher",
+      "No Bank Info",
+      "Reject / Invalid Acct",
+      "Special Rate",
+      "System Down",
+      "Voucher Incomplete/Unauthorized"
+    ];
 
     function closeOverlay() {
       document.getElementById("statusOverlay").style.display = "none";
     }
 
+    // TIME PARSER (0000 / 800 -> 00:00 / 08:00)
+    function formatTimeHHMM(val) {
+      if (!val) return "";
+      let str = String(val).trim().replace(/[^0-9:]/g, "");
+      
+      if (str.includes(":")) {
+        const parts = str.split(":");
+        return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0').slice(0, 2)}`;
+      }
+
+      if (str.length === 3) str = "0" + str;
+      if (str.length >= 4) {
+        const hh = str.substring(0, 2);
+        const mm = str.substring(2, 4);
+        return `${hh}:${mm}`;
+      }
+
+      return str;
+    }
+
+    function handleTimeInputChange(inputId, shiftId) {
+      const inputEl = document.getElementById(inputId);
+      if (inputEl) {
+        inputEl.value = formatTimeHHMM(inputEl.value);
+      }
+      markDirty(shiftId);
+    }
+
+    // DATE HELPERS (dd/mm/yyyy conversion)
+    function formatDateDDMMYYYY(dateObj) {
+      if (!dateObj || isNaN(dateObj.getTime())) return "";
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const yyyy = dateObj.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    function formatDateTimeDDMMYYYY(dateObj) {
+      if (!dateObj || isNaN(dateObj.getTime())) return "";
+      const dateStr = formatDateDDMMYYYY(dateObj);
+      const hh = String(dateObj.getHours()).padStart(2, '0');
+      const min = String(dateObj.getMinutes()).padStart(2, '0');
+      const ss = String(dateObj.getSeconds()).padStart(2, '0');
+      return `${dateStr} ${hh}:${min}:${ss}`;
+    }
+
+    function convertToDDMMYYYY(val) {
+      if (!val) return "";
+      if (val.includes("/")) {
+        const parts = val.split("/");
+        if (parts.length === 3) {
+          if (parts[0].length === 2 && parts[2].length === 4) return val;
+        }
+      }
+      if (val.includes("-")) {
+        const parts = val.split("-");
+        if (parts.length === 3) {
+          return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+        }
+      }
+      return val;
+    }
+
+    function convertToYYYYMMDD(val) {
+      if (!val) return "";
+      if (val.includes("-")) return val;
+      if (val.includes("/")) {
+        const parts = val.split("/");
+        if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+      return val;
+    }
+
+    function syncDateFromPicker(shiftId, fieldPrefix) {
+      const picker = document.getElementById(`${fieldPrefix}_picker_${shiftId}`);
+      const textInput = document.getElementById(`${fieldPrefix}_text_${shiftId}`);
+      if (picker && textInput && picker.value) {
+        textInput.value = convertToDDMMYYYY(picker.value);
+        markDirty(shiftId);
+      }
+    }
+
+    function syncPickerFromText(shiftId, fieldPrefix) {
+      const picker = document.getElementById(`${fieldPrefix}_picker_${shiftId}`);
+      const textInput = document.getElementById(`${fieldPrefix}_text_${shiftId}`);
+      if (picker && textInput) {
+        picker.value = convertToYYYYMMDD(textInput.value);
+        markDirty(shiftId);
+      }
+    }
+
     async function loadAttendanceTable() {
       const tbody = document.getElementById("attendanceTbody");
-      tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">Loading attendance spreadsheet...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: var(--text-muted);">Loading attendance spreadsheet...</td></tr>`;
+
+      dirtyRowIds.clear();
+      updateGlobalSaveButton();
 
       try {
         if (window.db && window.firestoreTools) {
           const { collection, query, orderBy, limit, getDocs } = window.firestoreTools;
 
-          const q = query(
-            collection(window.db, "shifts"),
-            orderBy("created_at", "desc"),
-            limit(100)
-          );
-
-          const querySnapshot = await getDocs(q);
+          let querySnapshot;
+          try {
+            const q = query(
+              collection(window.db, "shifts"),
+              orderBy("created_at", "desc"),
+              limit(150)
+            );
+            querySnapshot = await getDocs(q);
+          } catch (e) {
+            querySnapshot = await getDocs(collection(window.db, "shifts"));
+          }
 
           allShifts = [];
           querySnapshot.forEach((docSnap) => {
             allShifts.push({ id: docSnap.id, ...docSnap.data() });
           });
 
-          // Fetch missing profile data for older records missing name/email
           await populateMissingProfiles(allShifts);
-
           renderRows(allShifts);
         }
       } catch (err) {
         console.error("Table load error:", err);
-        tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: #dc2626;">Error loading records. Please check connection.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: #ef4444;">Error loading records. Please check connection.</td></tr>`;
       }
     }
 
-    // Lookup users collection if name/email are missing in shift record
     async function populateMissingProfiles(shifts) {
+      if (!window.firestoreTools) return;
       const { collection, query, where, getDocs } = window.firestoreTools;
 
       for (let s of shifts) {
         const hasName = s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"];
-        const hasEmail = s.email || s.email_address || s["EMAIL ADDRESS"];
 
-        if ((!hasName || !hasEmail) && s.doc_no) {
+        if (!hasName && s.doc_no) {
           if (!userProfileCache[s.doc_no]) {
             try {
-              const uq = query(collection(window.db, "users"), where("doc_no", "==", s.doc_no));
+              const uq = query(collection(window.db, "users"), where("doc_no", "==", String(s.doc_no).trim()));
               const uSnap = await getDocs(uq);
               if (!uSnap.empty) {
                 userProfileCache[s.doc_no] = uSnap.docs[0].data();
@@ -347,10 +578,7 @@
 
           const cached = userProfileCache[s.doc_no];
           if (cached) {
-            if (!hasName) s.nama = cached.nama || cached.full_name || cached.name || cached["FULL NAME (AS PER IC / PASSPORT)"] || "";
-            if (!hasEmail) s.email = cached.email || cached.email_address || cached["EMAIL ADDRESS"] || "";
-            if (!s.no_phone) s.no_phone = cached.no_phone || cached.phone || cached["PHONE NUMBER"] || "";
-            if (!s.gender) s.gender = cached.gender || cached["GENDER"] || "";
+            s.nama = cached.nama || cached.full_name || cached.name || cached["FULL NAME (AS PER IC / PASSPORT)"] || "";
           }
         }
       }
@@ -360,7 +588,7 @@
       const tbody = document.getElementById("attendanceTbody");
       
       if (shifts.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="22" style="text-align:center; padding: 24px; color: var(--text-muted);">No records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: var(--text-muted);">No records found.</td></tr>`;
         return;
       }
 
@@ -368,64 +596,175 @@
       shifts.forEach((s) => {
         const tr = document.createElement("tr");
         tr.id = `row_${s.id}`;
+        if (dirtyRowIds.has(s.id)) tr.classList.add("row-dirty");
 
-        // Robust property extraction covering all possible field names
         const nameVal = s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"] || "";
-        const emailVal = s.email || s.email_address || s["EMAIL ADDRESS"] || "";
-        const phoneVal = s.no_phone || s.phone || s["PHONE NUMBER"] || "";
-        const genderVal = (s.gender || "MALE").toUpperCase();
+        const payMode = s.payment_mode || "Cash";
+        const noteVal = s.notes || "";
 
         const hours = parseFloat(s.hours_worked || s.hours || 0);
         const rate = parseFloat(s.rate || 18);
-        const computedWages = (s.wages && s.wages !== "") ? s.wages : (hours * rate).toFixed(2);
+        const computedWages = (s.wages && s.wages !== "") ? parseFloat(s.wages).toFixed(2) : (hours * rate).toFixed(2);
+
+        // Date & DateTime Formatting
+        let formattedTimestamp = "";
+        if (s.created_at?.seconds) {
+          formattedTimestamp = formatDateTimeDDMMYYYY(new Date(s.created_at.seconds * 1000));
+        } else if (s.sign_in_timestamp) {
+          formattedTimestamp = formatDateTimeDDMMYYYY(new Date(s.sign_in_timestamp));
+        }
+
+        let formattedSignOut = "";
+        if (s.sign_out_timestamp) {
+          formattedSignOut = formatDateTimeDDMMYYYY(new Date(s.sign_out_timestamp));
+        } else if (s.sign_out_time) {
+          formattedSignOut = s.sign_out_time;
+        }
+
+        // Formatted values
+        const workingDateDDMMYYYY = convertToDDMMYYYY(s.working_date || s.date || '');
+        const workingDateYYYYMMDD = convertToYYYYMMDD(s.working_date || s.date || '');
+        
+        const processDateDDMMYYYY = convertToDDMMYYYY(s.process_date || '');
+        const processDateYYYYMMDD = convertToYYYYMMDD(s.process_date || '');
+
+        const paymentDateDDMMYYYY = convertToDDMMYYYY(s.payment_date || '');
+        const paymentDateYYYYMMDD = convertToYYYYMMDD(s.payment_date || '');
+
+        const shiftDisplayValue = formatTimeHHMM(s.scheduled_shift || s.shift || "");
+        const inDisplayValue = formatTimeHHMM(s.sign_in_time || s.in || "");
+        const outDisplayValue = formatTimeHHMM(s.sign_out_time || s.out || "");
+
+        // Build Notes Dropdown HTML dynamically (Blank default option)
+        let noteOptionsHtml = `<option value=""></option>`;
+        noteOptions.forEach(opt => {
+          const isSelected = noteVal === opt ? 'selected' : '';
+          noteOptionsHtml += `<option value="${opt}" ${isSelected}>${opt}</option>`;
+        });
 
         tr.innerHTML = `
-          <td style="text-align:center;">
-            <button id="btn_save_${s.id}" class="btn-save-row" onclick="saveRow('${s.id}')">
-              <i class="ph ph-floppy-disk-bold"></i> Save
-            </button>
-          </td>
-          <td><input type="text" class="cell-input" id="working_date_${s.id}" value="${s.date || s.working_date || ''}" onchange="markDirty('${s.id}')"></td>
-          <td class="cell-readonly">${s.timestamp || s.created_at ? new Date(s.created_at?.seconds * 1000 || Date.now()).toLocaleString() : ''}</td>
-          <td><input type="text" class="cell-input" id="shift_${s.id}" value="${s.scheduled_shift || s.shift || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="email_${s.id}" value="${emailVal}" onchange="markDirty('${s.id}')"></td>
-          <td class="cell-readonly"><strong>${s.doc_no || ''}</strong></td>
-          <td class="cell-readonly"><strong>${s.voucher_no || s.voucher || ''}</strong></td>
-          <td><input type="text" class="cell-input" id="nama_${s.id}" value="${nameVal}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="dept_${s.id}" value="${s.department || ''}" onchange="markDirty('${s.id}')"></td>
-          <td class="cell-readonly">${s.sign_out_timestamp || s.sign_out_time || ''}</td>
-          <td><input type="text" class="cell-input" id="in_${s.id}" value="${s.sign_in_time || s.in || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="out_${s.id}" value="${s.sign_out_time || s.out || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="number" step="0.1" class="cell-input" id="hours_${s.id}" value="${hours}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
-          <td><input type="number" step="1" class="cell-input" id="rate_${s.id}" value="${rate}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
-          <td><input type="number" step="0.01" class="cell-input" id="wages_${s.id}" value="${computedWages}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="date" class="cell-input" id="process_date_${s.id}" value="${s.process_date || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="date" class="cell-input" id="payment_date_${s.id}" value="${s.payment_date || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="remarks_${s.id}" value="${s.remarks || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="notes_${s.id}" value="${s.notes || ''}" onchange="markDirty('${s.id}')"></td>
-          <td><input type="text" class="cell-input" id="phone_${s.id}" value="${phoneVal}" onchange="markDirty('${s.id}')"></td>
+          <!-- WORKING DATE -->
           <td>
-            <select class="cell-input" id="gender_${s.id}" onchange="markDirty('${s.id}')">
-              <option value="MALE" ${genderVal === 'MALE' ? 'selected' : ''}>MALE</option>
-              <option value="FEMALE" ${genderVal === 'FEMALE' ? 'selected' : ''}>FEMALE</option>
-            </select>
+            <div class="cell-date-container">
+              <input type="text" class="cell-input cell-date-text" id="working_date_text_${s.id}" value="${workingDateDDMMYYYY}" placeholder="" onchange="syncPickerFromText('${s.id}', 'working_date')">
+              <input type="date" class="hidden-date-picker" id="working_date_picker_${s.id}" value="${workingDateYYYYMMDD}" onchange="syncDateFromPicker('${s.id}', 'working_date')">
+            </div>
           </td>
+          
+          <!-- TIMESTAMP -->
+          <td>${formattedTimestamp}</td>
+          
+          <!-- SHIFT -->
+          <td><input type="text" maxlength="5" placeholder="" class="cell-input" style="text-align:center; font-weight:700;" id="shift_${s.id}" value="${shiftDisplayValue}" onblur="handleTimeInputChange('shift_${s.id}', '${s.id}')" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- DOC_NO -->
+          <td>${s.doc_no || ''}</td>
+          
+          <!-- VOUCHER -->
+          <td><input type="text" class="cell-input" style="font-weight:700;" id="voucher_${s.id}" value="${s.voucher_no || s.voucher || ''}" placeholder="" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- NAMA (MENGIKUT IC) -->
+          <td class="col-name-cell"><input type="text" class="cell-input cell-name" id="nama_${s.id}" value="${nameVal}" placeholder="" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- DEPARTMENT -->
+          <td><input type="text" class="cell-input dept-tag" id="dept_${s.id}" value="${s.department || ''}" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- SIGN OUT -->
+          <td>${formattedSignOut}</td>
+          
+          <!-- IN -->
+          <td class="col-time-cell"><input type="text" maxlength="5" placeholder="" class="cell-input cell-time-input" id="in_${s.id}" value="${inDisplayValue}" onblur="handleTimeInputChange('in_${s.id}', '${s.id}')" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- OUT -->
+          <td class="col-time-cell"><input type="text" maxlength="5" placeholder="" class="cell-input cell-time-input" id="out_${s.id}" value="${outDisplayValue}" onblur="handleTimeInputChange('out_${s.id}', '${s.id}')" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- HOURS -->
+          <td><input type="number" step="0.1" class="cell-input cell-number" id="hours_${s.id}" value="${hours || ''}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
+          
+          <!-- RATE -->
+          <td><input type="number" step="1" class="cell-input cell-number" id="rate_${s.id}" value="${rate || ''}" onchange="recalcWages('${s.id}'); markDirty('${s.id}')"></td>
+          
+          <!-- WAGES -->
           <td>
-            <select class="cell-input" id="payment_mode_${s.id}" onchange="markDirty('${s.id}')">
-              <option value="Cash" ${(s.payment_mode || 'Cash') === 'Cash' ? 'selected' : ''}>Cash</option>
-              <option value="ONLINE" ${s.payment_mode === 'ONLINE' ? 'selected' : ''}>ONLINE</option>
-            </select>
+            <div class="currency-wrapper">
+              <span class="currency-prefix">RM</span>
+              <input type="number" step="0.01" class="cell-input cell-wages" id="wages_${s.id}" value="${computedWages}" onchange="markDirty('${s.id}')">
+            </div>
+          </td>
+          
+          <!-- PROCESS DATE (WITH PH CHEVRON) -->
+          <td>
+            <div class="cell-date-container">
+              <input type="text" class="cell-input cell-date-text" id="process_date_text_${s.id}" value="${processDateDDMMYYYY}" placeholder="" onchange="syncPickerFromText('${s.id}', 'process_date')">
+              <i class="ph ph-caret-down select-caret"></i>
+              <input type="date" class="hidden-date-picker" id="process_date_picker_${s.id}" value="${processDateYYYYMMDD}" onchange="syncDateFromPicker('${s.id}', 'process_date')">
+            </div>
+          </td>
+          
+          <!-- PAYMENT DATE (WITH PH CHEVRON) -->
+          <td>
+            <div class="cell-date-container">
+              <input type="text" class="cell-input cell-date-text" id="payment_date_text_${s.id}" value="${paymentDateDDMMYYYY}" placeholder="" onchange="syncPickerFromText('${s.id}', 'payment_date')">
+              <i class="ph ph-caret-down select-caret"></i>
+              <input type="date" class="hidden-date-picker" id="payment_date_picker_${s.id}" value="${paymentDateYYYYMMDD}" onchange="syncDateFromPicker('${s.id}', 'payment_date')">
+            </div>
+          </td>
+          
+          <!-- REMARKS -->
+          <td><input type="text" class="cell-input" id="remarks_${s.id}" value="${s.remarks || ''}" placeholder="" onchange="markDirty('${s.id}')"></td>
+          
+          <!-- NOTES (WITH PH CHEVRON) -->
+          <td>
+            <div class="cell-select-container">
+              <select class="cell-input select-dropdown" id="notes_${s.id}" onchange="markDirty('${s.id}')">
+                ${noteOptionsHtml}
+              </select>
+              <i class="ph ph-caret-down select-caret"></i>
+            </div>
+          </td>
+
+          <!-- PAYMENT MODE (WITH PH CHEVRON) -->
+          <td>
+            <div class="cell-select-container">
+              <select class="cell-input select-dropdown ${payMode === 'ONLINE' ? 'pay-online' : 'pay-cash'}" id="payment_mode_${s.id}" onchange="updatePayStyle('${s.id}'); markDirty('${s.id}')">
+                <option value="Cash" ${payMode === 'Cash' ? 'selected' : ''}>Cash</option>
+                <option value="ONLINE" ${payMode === 'ONLINE' ? 'selected' : ''}>ONLINE</option>
+              </select>
+              <i class="ph ph-caret-down select-caret"></i>
+            </div>
           </td>
         `;
         tbody.appendChild(tr);
       });
     }
 
+    function updatePayStyle(shiftId) {
+      const select = document.getElementById(`payment_mode_${shiftId}`);
+      if (select.value === 'ONLINE') {
+        select.className = 'cell-input select-dropdown pay-online';
+      } else {
+        select.className = 'cell-input select-dropdown pay-cash';
+      }
+    }
+
     function markDirty(shiftId) {
+      dirtyRowIds.add(shiftId);
       const tr = document.getElementById(`row_${shiftId}`);
-      const btn = document.getElementById(`btn_save_${shiftId}`);
       if (tr) tr.classList.add("row-dirty");
-      if (btn) btn.classList.add("btn-save-active");
+      updateGlobalSaveButton();
+    }
+
+    function updateGlobalSaveButton() {
+      const btn = document.getElementById("btnGlobalSave");
+      if (dirtyRowIds.size > 0) {
+        btn.disabled = false;
+        btn.classList.add("active");
+        btn.innerHTML = `<i class="ph ph-floppy-disk-bold"></i> Save ${dirtyRowIds.size} ${dirtyRowIds.size === 1 ? 'Change' : 'Changes'}`;
+      } else {
+        btn.disabled = true;
+        btn.classList.remove("active");
+        btn.innerHTML = `<i class="ph ph-floppy-disk-bold"></i> Save Changes`;
+      }
     }
 
     function recalcWages(shiftId) {
@@ -440,7 +779,6 @@
 
       const filtered = allShifts.filter((s) => {
         const nameVal = (s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"] || "").toLowerCase();
-        const emailVal = (s.email || s.email_address || s["EMAIL ADDRESS"] || "").toLowerCase();
         const voucherVal = (s.voucher_no || s.voucher || "").toLowerCase();
         const docVal = (s.doc_no || "").toLowerCase();
         const deptVal = (s.department || "").toLowerCase();
@@ -449,10 +787,11 @@
           voucherVal.includes(search) ||
           docVal.includes(search) ||
           nameVal.includes(search) ||
-          emailVal.includes(search) ||
           deptVal.includes(search);
 
-        const isPaid = !!s.payment_date;
+        const paymentDate = document.getElementById(`payment_date_text_${s.id}`)?.value || s.payment_date;
+        const isPaid = !!paymentDate;
+        
         const matchesStatus = 
           filter === "ALL" ||
           (filter === "PAID" && isPaid) ||
@@ -464,7 +803,9 @@
       renderRows(filtered);
     }
 
-    async function saveRow(shiftId) {
+    async function saveAllChanges() {
+      if (dirtyRowIds.size === 0) return;
+
       const overlay = document.getElementById("statusOverlay");
       const title = document.getElementById("statusTitle");
       const msg = document.getElementById("statusMsg");
@@ -475,63 +816,81 @@
       spinner.style.display = "block";
       closeBtn.style.display = "none";
 
-      const updatedData = {
-        working_date: document.getElementById(`working_date_${shiftId}`).value,
-        scheduled_shift: document.getElementById(`shift_${shiftId}`).value,
-        email: document.getElementById(`email_${shiftId}`).value,
-        nama: document.getElementById(`nama_${shiftId}`).value,
-        department: document.getElementById(`dept_${shiftId}`).value,
-        sign_in_time: document.getElementById(`in_${shiftId}`).value,
-        sign_out_time: document.getElementById(`out_${shiftId}`).value,
-        hours_worked: document.getElementById(`hours_${shiftId}`).value,
-        rate: document.getElementById(`rate_${shiftId}`).value,
-        wages: document.getElementById(`wages_${shiftId}`).value,
-        process_date: document.getElementById(`process_date_${shiftId}`).value,
-        payment_date: document.getElementById(`payment_date_${shiftId}`).value,
-        payment_status: document.getElementById(`payment_date_${shiftId}`).value ? "PAID" : "UNPAID",
-        remarks: document.getElementById(`remarks_${shiftId}`).value,
-        notes: document.getElementById(`notes_${shiftId}`).value,
-        no_phone: document.getElementById(`phone_${shiftId}`).value,
-        gender: document.getElementById(`gender_${shiftId}`).value,
-        payment_mode: document.getElementById(`payment_mode_${shiftId}`).value,
-        updated_at: new Date()
-      };
-
       try {
         if (window.db && window.firestoreTools) {
-          const { doc, updateDoc } = window.firestoreTools;
+          const { doc, writeBatch } = window.firestoreTools;
+          const batch = writeBatch(window.db);
 
-          const shiftDocRef = doc(window.db, "shifts", shiftId);
-          await updateDoc(shiftDocRef, updatedData);
+          dirtyRowIds.forEach((shiftId) => {
+            const rawShift = document.getElementById(`shift_${shiftId}`)?.value || "";
+            const formattedShift = formatTimeHHMM(rawShift);
 
-          // Update local state cache
-          const localShift = allShifts.find(s => s.id === shiftId);
-          if (localShift) Object.assign(localShift, updatedData);
+            const rawIn = document.getElementById(`in_${shiftId}`)?.value || "";
+            const formattedIn = formatTimeHHMM(rawIn);
+
+            const rawOut = document.getElementById(`out_${shiftId}`)?.value || "";
+            const formattedOut = formatTimeHHMM(rawOut);
+
+            const workingDate = document.getElementById(`working_date_text_${shiftId}`)?.value || "";
+            const processDate = document.getElementById(`process_date_text_${shiftId}`)?.value || "";
+            const paymentDate = document.getElementById(`payment_date_text_${shiftId}`)?.value || "";
+
+            const updatedData = {
+              working_date: workingDate,
+              scheduled_shift: formattedShift,
+              voucher_no: document.getElementById(`voucher_${shiftId}`)?.value || "",
+              nama: document.getElementById(`nama_${shiftId}`)?.value || "",
+              department: document.getElementById(`dept_${shiftId}`)?.value || "",
+              sign_in_time: formattedIn,
+              sign_out_time: formattedOut,
+              hours_worked: document.getElementById(`hours_${shiftId}`)?.value || "0",
+              rate: document.getElementById(`rate_${shiftId}`)?.value || "18",
+              wages: document.getElementById(`wages_${shiftId}`)?.value || "0.00",
+              process_date: processDate,
+              payment_date: paymentDate,
+              payment_status: paymentDate ? "PAID" : "UNPAID",
+              remarks: document.getElementById(`remarks_${shiftId}`)?.value || "",
+              notes: document.getElementById(`notes_${shiftId}`)?.value || "",
+              payment_mode: document.getElementById(`payment_mode_${shiftId}`)?.value || "Cash",
+              updated_at: new Date()
+            };
+
+            const shiftRef = doc(window.db, "shifts", shiftId);
+            batch.update(shiftRef, updatedData);
+
+            const localShift = allShifts.find(s => s.id === shiftId);
+            if (localShift) Object.assign(localShift, updatedData);
+          });
+
+          await batch.commit();
+
+          dirtyRowIds.forEach((shiftId) => {
+            const tr = document.getElementById(`row_${shiftId}`);
+            if (tr) tr.classList.remove("row-dirty");
+          });
+
+          const totalSaved = dirtyRowIds.size;
+          dirtyRowIds.clear();
+          updateGlobalSaveButton();
 
           spinner.style.display = "none";
-          title.textContent = "Row Updated";
+          title.textContent = "Saved Successfully!";
           title.style.color = "var(--success-green)";
-          msg.innerHTML = `Changes saved successfully.`;
+          msg.innerHTML = `Updated ${totalSaved} ${totalSaved === 1 ? 'record' : 'records'} in Firestore.`;
           closeBtn.style.display = "block";
-
-          // Reset dirty UI state
-          const tr = document.getElementById(`row_${shiftId}`);
-          const btn = document.getElementById(`btn_save_${shiftId}`);
-          if (tr) tr.classList.remove("row-dirty");
-          if (btn) btn.classList.remove("btn-save-active");
         }
       } catch (err) {
-        console.error("Save error:", err);
+        console.error("Batch save error:", err);
         spinner.style.display = "none";
         title.textContent = "Save Failed";
-        title.style.color = "#dc3545";
-        msg.textContent = "Could not save row changes. Please try again.";
+        title.style.color = "#ef4444";
+        msg.textContent = "Could not save changes to database. Please try again.";
         closeBtn.style.display = "block";
       }
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      setTimeout(loadAttendanceTable, 500);
+      setTimeout(loadAttendanceTable, 400);
     });
   </script>
 </body>
