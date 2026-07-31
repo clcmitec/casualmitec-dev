@@ -15,9 +15,7 @@
       collection, 
       getDocs, 
       doc,
-      updateDoc,
-      query, 
-      where 
+      updateDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -28,7 +26,7 @@
     const db = getFirestore(app);
 
     window.db = db;
-    window.firestoreTools = { collection, getDocs, doc, updateDoc, query, where };
+    window.firestoreTools = { collection, getDocs, doc, updateDoc };
     console.log("🔥 Firebase Firestore connected on Sign-Out Page!");
   </script>
 
@@ -256,27 +254,24 @@
 
       try {
         if (window.db && window.firestoreTools) {
-          const { collection, query, where, getDocs, doc, updateDoc } = window.firestoreTools;
+          const { collection, getDocs, doc, updateDoc } = window.firestoreTools;
 
-          // Query active shifts for this worker using IC/Passport
-          const q = query(
-            collection(window.db, "shifts"),
-            where("doc_no", "==", String(docNo))
-          );
-
-          const snapshot = await getDocs(q);
+          // Fetch shifts and match locally to avoid type mismatch issues on doc_no and voucher_no
+          const snapshot = await getDocs(collection(window.db, "shifts"));
 
           let activeShiftDoc = null;
 
-          // Check documents client-side to handle both Number and String voucher storage
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
+
+            const storedDocNo = String(data.doc_no || "").trim();
             const storedVoucher = String(data.voucher_no || "").trim();
-            
+
+            const isDocMatch = !docNo || (storedDocNo === String(docNo).trim()) || (Number(storedDocNo) === Number(docNo));
             const isVoucherMatch = (storedVoucher === rawVoucher) || (Number(storedVoucher) === Number(rawVoucher));
             const isOpenShift = !data.sign_out_time || data.sign_out_time === "";
 
-            if (isVoucherMatch && isOpenShift) {
+            if (isDocMatch && isVoucherMatch && isOpenShift) {
               activeShiftDoc = { id: docSnap.id, ...data };
             }
           });
