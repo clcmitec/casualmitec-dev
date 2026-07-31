@@ -285,7 +285,7 @@
       if (photo) avatarEl.src = convertToDirectLink(photo);
     }
 
-    async function submitSignIn() {
+    async function submitAttendance() {
   const record = JSON.parse(localStorage.getItem("mitecWorkerRecord") || "{}");
   const docNo = localStorage.getItem("mcl_doc_no") || record["IC / PASSPORT NUMBER"] || record.mykad_passport_no || "";
   
