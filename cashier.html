@@ -432,7 +432,7 @@
     function formatTimeHHMM(val) {
       if (!val) return "";
       let str = String(val).trim().replace(/[^0-9:]/g, "");
-      
+
       if (str.includes(":")) {
         const parts = str.split(":");
         return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0').slice(0, 2)}`;
@@ -532,14 +532,16 @@
 
           let querySnapshot;
           try {
+            // 🔥 CAPPED READS TO 100 TO PREVENT EXCEEDING FIRESTORE DAILY SPARK QUOTA
             const q = query(
               collection(window.db, "shifts"),
               orderBy("created_at", "desc"),
-              limit(150)
+              limit(100)
             );
             querySnapshot = await getDocs(q);
           } catch (e) {
-            querySnapshot = await getDocs(collection(window.db, "shifts"));
+            const fallbackQ = query(collection(window.db, "shifts"), limit(100));
+            querySnapshot = await getDocs(fallbackQ);
           }
 
           allShifts = [];
@@ -552,13 +554,13 @@
         }
       } catch (err) {
         console.error("Table load error:", err);
-        tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: #ef4444;">Error loading records. Please check connection.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: #ef4444;">Quota exceeded or database error loading records.</td></tr>`;
       }
     }
 
     async function populateMissingProfiles(shifts) {
       if (!window.firestoreTools) return;
-      const { collection, query, where, getDocs } = window.firestoreTools;
+      const { collection, query, where, limit, getDocs } = window.firestoreTools;
 
       for (let s of shifts) {
         const hasName = s.nama || s.full_name || s.name || s["FULL NAME (AS PER IC / PASSPORT)"];
@@ -566,7 +568,11 @@
         if (!hasName && s.doc_no) {
           if (!userProfileCache[s.doc_no]) {
             try {
-              const uq = query(collection(window.db, "users"), where("doc_no", "==", String(s.doc_no).trim()));
+              const uq = query(
+                collection(window.db, "users"), 
+                where("doc_no", "==", String(s.doc_no).trim()),
+                limit(1)
+              );
               const uSnap = await getDocs(uq);
               if (!uSnap.empty) {
                 userProfileCache[s.doc_no] = uSnap.docs[0].data();
@@ -586,7 +592,7 @@
 
     function renderRows(shifts) {
       const tbody = document.getElementById("attendanceTbody");
-      
+
       if (shifts.length === 0) {
         tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 32px; color: var(--text-muted);">No records found.</td></tr>`;
         return;
@@ -624,7 +630,7 @@
         // Formatted values
         const workingDateDDMMYYYY = convertToDDMMYYYY(s.working_date || s.date || '');
         const workingDateYYYYMMDD = convertToYYYYMMDD(s.working_date || s.date || '');
-        
+
         const processDateDDMMYYYY = convertToDDMMYYYY(s.process_date || '');
         const processDateYYYYMMDD = convertToYYYYMMDD(s.process_date || '');
 
@@ -635,7 +641,7 @@
         const inDisplayValue = formatTimeHHMM(s.sign_in_time || s.in || "");
         const outDisplayValue = formatTimeHHMM(s.sign_out_time || s.out || "");
 
-        // Build Notes Dropdown HTML dynamically (Blank default option)
+        // Build Notes Dropdown HTML dynamically
         let noteOptionsHtml = `<option value=""></option>`;
         noteOptions.forEach(opt => {
           const isSelected = noteVal === opt ? 'selected' : '';
@@ -692,7 +698,7 @@
             </div>
           </td>
           
-          <!-- PROCESS DATE (WITH PH CHEVRON) -->
+          <!-- PROCESS DATE -->
           <td>
             <div class="cell-date-container">
               <input type="text" class="cell-input cell-date-text" id="process_date_text_${s.id}" value="${processDateDDMMYYYY}" placeholder="" onchange="syncPickerFromText('${s.id}', 'process_date')">
@@ -701,7 +707,7 @@
             </div>
           </td>
           
-          <!-- PAYMENT DATE (WITH PH CHEVRON) -->
+          <!-- PAYMENT DATE -->
           <td>
             <div class="cell-date-container">
               <input type="text" class="cell-input cell-date-text" id="payment_date_text_${s.id}" value="${paymentDateDDMMYYYY}" placeholder="" onchange="syncPickerFromText('${s.id}', 'payment_date')">
@@ -713,7 +719,7 @@
           <!-- REMARKS -->
           <td><input type="text" class="cell-input" id="remarks_${s.id}" value="${s.remarks || ''}" placeholder="" onchange="markDirty('${s.id}')"></td>
           
-          <!-- NOTES (WITH PH CHEVRON) -->
+          <!-- NOTES -->
           <td>
             <div class="cell-select-container">
               <select class="cell-input select-dropdown" id="notes_${s.id}" onchange="markDirty('${s.id}')">
@@ -723,7 +729,7 @@
             </div>
           </td>
 
-          <!-- PAYMENT MODE (WITH PH CHEVRON) -->
+          <!-- PAYMENT MODE -->
           <td>
             <div class="cell-select-container">
               <select class="cell-input select-dropdown ${payMode === 'ONLINE' ? 'pay-online' : 'pay-cash'}" id="payment_mode_${s.id}" onchange="updatePayStyle('${s.id}'); markDirty('${s.id}')">
@@ -791,7 +797,7 @@
 
         const paymentDate = document.getElementById(`payment_date_text_${s.id}`)?.value || s.payment_date;
         const isPaid = !!paymentDate;
-        
+
         const matchesStatus = 
           filter === "ALL" ||
           (filter === "PAID" && isPaid) ||
