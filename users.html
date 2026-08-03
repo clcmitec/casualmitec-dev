@@ -409,7 +409,7 @@
         const tr = document.createElement("tr");
 
         // Dynamic field extraction based on Firestore document structure
-        const nameVal = u.name_mykad || u.nama || u.full_name || u.name || u["FULL NAME (AS PER IC / PASSPORT)"] || "";
+        const nameVal = u.name_mykad || u.nama || u.full_name || u.name || u["NAMA (MENGIKUT IC)"] || "";
         const docNo = u["Column 6"] || u.doc_no || u.ic_no || u.doc_type || u.passport || "";
         const email = u.email || "";
         const phone = u.phone || u.phone_number || "";
